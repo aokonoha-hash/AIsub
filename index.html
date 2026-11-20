@@ -1,0 +1,3651 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>じゅぎょうほじょ AIサポーター</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: BIZ UDPGothic & Noto Sans JP for high-legibility UD typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Noto+Sans+JP:wght@500;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    /* UDデジタル教科書体・ユニバーサルデザインフォント設定 */
+    :root {
+      --ud-font: "UD Digi Kyokasho N-R", "UD デジタル 教科書体 N-R", "BIZ UDPGothic", "Hiragino Maru Gothic ProN", "Noto Sans JP", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      font-family: var(--ud-font);
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+
+    /* 入力欄のみテキスト選択許可 */
+    input, textarea, select {
+      user-select: text;
+      font-family: var(--ud-font);
+    }
+
+    /* ルビ表示の最適化（児童が読みやすいサイズと行間） */
+    ruby {
+      ruby-align: center;
+      margin: 0 1px;
+    }
+    rt {
+      font-size: 0.52em;
+      color: #fde047;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    /* 電光掲示板風テキストエリアのカスタムスクロールバー（長文時のみ内部スクロール） */
+    .led-board-scroll::-webkit-scrollbar {
+      width: 10px;
+    }
+    .led-board-scroll::-webkit-scrollbar-track {
+      background: #090d16;
+      border-radius: 8px;
+    }
+    .led-board-scroll::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 8px;
+      border: 2px solid #090d16;
+    }
+
+    /* 口パク・表情アニメーション（自作画像モード用） */
+    @keyframes avatarBounce {
+      0%, 100% { transform: scale(1) translateY(0); }
+      50% { transform: scale(1.035) translateY(-5px); }
+    }
+    @keyframes avatarBreathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.015); }
+    }
+    @keyframes avatarListen {
+      0%, 100% { transform: rotate(0deg) scale(1.02); }
+      25% { transform: rotate(-2.5deg) scale(1.03); }
+      75% { transform: rotate(2.5deg) scale(1.03); }
+    }
+    .anim-idle { animation: avatarBreathe 3.2s ease-in-out infinite; }
+    .anim-listening { animation: avatarListen 1.2s ease-in-out infinite; }
+    .anim-speaking { animation: avatarBounce 0.36s ease-in-out infinite; }
+
+    /* 2秒長押しボタンのプログレスアニメーション */
+    .long-press-fill {
+      transition: width 2s linear;
+    }
+
+    /* 音声入力中のパルスエフェクト */
+    @keyframes pulseRing {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 16px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .mic-recording {
+      animation: pulseRing 1.4s infinite;
+    }
+
+    /* ドット絵風レンダリング */
+    .pixelated {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-50 flex flex-col">
+
+  <!-- =====================================================================
+       ① 授業用：AIサポーター画面（100dvh 固定・16:9 2カラム・スクロールなし）
+       ===================================================================== -->
+  <div id="classroomView" class="w-full h-full flex flex-col p-2.5 sm:p-3.5 gap-2.5 sm:gap-3.5 overflow-hidden">
+
+    <!-- 上部コンパクトヘッダーバー -->
+    <header class="shrink-0 h-12 sm:h-14 bg-slate-900/90 border border-slate-700/80 rounded-2xl px-3 sm:px-4 flex items-center justify-between gap-2 shadow-lg">
+      <!-- 左：授業プロファイル名 & ステータス -->
+      <div class="flex items-center gap-2.5 min-w-0">
+        <span class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-indigo-600 text-white text-xl shadow shrink-0">🤖</span>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h1 id="headerClassTitle" class="text-base sm:text-lg font-bold text-white truncate">1じかんめ：あさの かい</h1>
+            <span id="apiModeBadge" class="hidden sm:inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">デモモード</span>
+          </div>
+          <p id="headerClassGoal" class="text-xs text-slate-300 truncate hidden md:block">めあて：げんきに あいさつ しよう！</p>
+        </div>
+      </div>
+
+      <!-- 右：自動読み上げワンタッチ切替・速度・再読み上げ・教員設定長押しボタン -->
+      <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <!-- 自動読み上げワンタッチ切替 -->
+        <button id="toggleAutoTtsBtn" type="button" onclick="toggleAutoTts()"
+          class="h-10 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow transition active:scale-95">
+          <span id="autoTtsIcon">🔊</span>
+          <span id="autoTtsLabel">じどうよみあげ：ON</span>
+        </button>
+
+        <!-- 読み上げ速度（PC・タブレット横画面表示） -->
+        <div class="hidden lg:flex items-center gap-1.5 bg-slate-800 border border-slate-700 px-2.5 h-10 rounded-xl">
+          <span class="text-xs text-slate-300 font-bold">はやさ</span>
+          <input id="ttsRateSlider" type="range" min="0.6" max="1.3" step="0.1" value="0.9"
+            oninput="updateTtsRate(this.value)"
+            class="w-20 accent-emerald-400 cursor-pointer" />
+          <span id="ttsRateVal" class="text-xs font-bold text-emerald-300 w-7 text-right">0.9</span>
+        </div>
+
+        <!-- もういちど聞くボタン -->
+        <button id="replayTtsBtn" type="button" onclick="speakCurrentResponse()"
+          title="もういちど よみあげる"
+          class="h-10 px-3 rounded-xl font-bold text-xs sm:text-sm bg-sky-600 hover:bg-sky-500 text-white shadow flex items-center gap-1 transition active:scale-95">
+          <span>🔁</span>
+          <span class="hidden sm:inline">もういちど</span>
+        </button>
+
+        <!-- 教員用設定画面ボタン（2秒長押し誤操作防止ロック付き） -->
+        <button id="teacherLockBtn" type="button"
+          class="relative overflow-hidden h-10 px-3 rounded-xl font-bold text-xs sm:text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 shadow flex items-center gap-1.5 transition">
+          <div id="teacherLockProgress" class="absolute left-0 top-0 bottom-0 w-0 bg-amber-500/40 pointer-events-none"></div>
+          <span class="relative z-10">🔒</span>
+          <span class="relative z-10">せんせい（2びょうながおし）</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- メイン2カラム領域（残りの高さすべてを使用） -->
+    <main class="flex-1 min-h-0 grid grid-cols-12 gap-2.5 sm:gap-3.5">
+
+      <!-- ===============================================================
+           左カラム（5/12幅）：アバター表示枠 ＆ ハイブリッド動画・音楽プレイヤー
+           =============================================================== -->
+      <section class="col-span-5 h-full min-h-0 bg-black rounded-3xl border-2 border-slate-700/90 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center">
+
+        <!-- 状態バッジ（左上） -->
+        <div id="avatarStatusBadge" class="absolute top-3 left-3 z-20 px-3 py-1.5 rounded-full bg-slate-900/85 border border-slate-700 text-xs sm:text-sm font-bold text-emerald-300 flex items-center gap-1.5 backdrop-blur-sm">
+          <span id="avatarStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="avatarStatusText">まっています</span>
+        </div>
+
+        <!-- 音楽（MP3）再生中ミニバー（アバター上部に重ねて表示） -->
+        <div id="audioPlayingBanner" class="hidden absolute top-14 left-3 right-3 z-20 px-3.5 py-2.5 rounded-2xl bg-purple-950/95 border-2 border-purple-400 shadow-xl flex items-center justify-between gap-2 backdrop-blur-sm">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-2xl animate-bounce shrink-0">🎵</span>
+            <span id="audioPlayingTitle" class="text-xs sm:text-sm font-black text-purple-200 truncate">おんがく さいせいちゅう</span>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button id="audioUnmuteBtn" type="button" onclick="playCurrentAudioFromStart()"
+              class="hidden px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow">
+              🔊 ならす
+            </button>
+            <button type="button" onclick="stopTriggerAudio()"
+              class="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow">
+              ⏹ とめる
+            </button>
+          </div>
+        </div>
+        <audio id="triggerAudioPlayer" class="hidden"></audio>
+
+        <!-- 1. LEDドットマトリクス顔（Canvas） -->
+        <div id="ledAvatarContainer" class="w-full h-full flex items-center justify-center p-2">
+          <canvas id="ledCanvas" class="w-full h-full block rounded-2xl"></canvas>
+        </div>
+
+        <!-- 2. 自作画像アバター（通常画像 / ドット絵変換モード） -->
+        <div id="imageAvatarContainer" class="hidden w-full h-full flex items-center justify-center p-4 relative">
+          <img id="customAvatarImg" src="" alt="アバターがぞう" class="max-w-full max-h-full object-contain rounded-2xl anim-idle" />
+          <canvas id="pixelAvatarCanvas" class="hidden max-w-full max-h-full object-contain rounded-2xl pixelated anim-idle"></canvas>
+          <!-- 口パクオーバーレイ（自作画像モード用） -->
+          <div id="customImgMouthOverlay" class="hidden absolute bottom-[22%] w-14 h-5 bg-rose-500 border-4 border-slate-900 rounded-full transition-transform duration-75"></div>
+        </div>
+
+        <!-- 3. カスタム待機動画（MP4ループ） -->
+        <div id="idleVideoContainer" class="hidden w-full h-full flex items-center justify-center bg-black">
+          <video id="idleLoopVideo" class="w-full h-full object-contain" loop muted playsinline></video>
+        </div>
+
+        <!-- 4. キーワード連動動画プレイヤー（一致時のみ自動切り替え） -->
+        <div id="triggerVideoContainer" class="hidden absolute inset-0 z-30 bg-black flex flex-col items-center justify-center">
+          <video id="triggerVideoPlayer" class="w-full h-full object-contain" playsinline></video>
+          <iframe id="triggerYoutubePlayer" class="hidden w-full h-full border-0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>
+
+          <!-- 自動再生ブロック時の「消音フォールバック」大きな解除ボタン -->
+          <button id="unmuteFallbackBtn" type="button" onclick="unmuteAndRestartTriggerVideo()"
+            class="hidden absolute z-40 px-6 py-5 rounded-3xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xl sm:text-2xl shadow-2xl border-4 border-white flex items-center gap-3 animate-bounce">
+            <span class="text-3xl">🔊</span>
+            <span>おとを だす</span>
+          </button>
+
+          <!-- 動画再生中の操作ボタン群（左下：全画面拡大 / 右下：もどる） -->
+          <div class="absolute bottom-3 left-3 right-3 z-40 flex items-center justify-between gap-2">
+            <button type="button" onclick="expandActiveTriggerVideoToFullscreen()"
+              class="px-4 py-2.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 border-2 border-white text-sm sm:text-base font-black shadow-xl flex items-center gap-1.5">
+              <span>⛶</span>
+              <span>おおきく みる</span>
+            </button>
+            <button type="button" onclick="stopTriggerVideo()"
+              class="px-4 py-2.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-600 text-sm font-bold shadow-lg">
+              ⏹ もどる
+            </button>
+          </div>
+        </div>
+
+        <!-- 左下：ワンポイント挨拶ショートカット（児童が押しやすいクイックボタン） -->
+        <div id="quickActionDock" class="absolute bottom-3 left-3 right-3 z-20 flex flex-wrap justify-center gap-1.5">
+          <button type="button" onclick="handleQuickPrompt('こんにちは！')"
+            class="px-3 py-1.5 rounded-xl bg-slate-900/85 hover:bg-indigo-600 text-white border border-slate-700 text-xs sm:text-sm font-bold shadow transition active:scale-95">
+            👋 こんにちは
+          </button>
+          <button type="button" onclick="handleQuickPrompt('じこしょうかい して！')"
+            class="px-3 py-1.5 rounded-xl bg-slate-900/85 hover:bg-indigo-600 text-white border border-slate-700 text-xs sm:text-sm font-bold shadow transition active:scale-95">
+            🤖 だれですか？
+          </button>
+          <button type="button" onclick="handleQuickPrompt('じこしょうかい の やりかた を おしえて')"
+            class="px-3 py-1.5 rounded-xl bg-slate-900/85 hover:bg-indigo-600 text-white border border-slate-700 text-xs sm:text-sm font-bold shadow transition active:scale-95">
+            🗣️ じこしょうかい
+          </button>
+        </div>
+      </section>
+
+      <!-- ===============================================================
+           右カラム（7/12幅）：電光掲示板テキスト ＋ 連動メディア ＋ 4択 ＋ 音声操作
+           =============================================================== -->
+      <section class="col-span-7 h-full min-h-0 flex flex-col gap-2 sm:gap-2.5">
+
+        <!-- 1. 黒ベース電光掲示板風 応答テキスト表示パネル -->
+        <div class="flex-1 min-h-0 bg-black rounded-3xl border-2 border-slate-700 p-3.5 sm:p-5 flex flex-col justify-between shadow-2xl relative overflow-hidden">
+          <!-- 児童が話した言葉（認識結果バッジ） -->
+          <div id="userSpeechBubble" class="hidden shrink-0 mb-2 px-3.5 py-1.5 rounded-2xl bg-sky-950/90 border border-sky-500/50 text-sky-200 text-sm sm:text-base font-bold flex items-center gap-2">
+            <span>🗣️ あなた：</span>
+            <span id="userSpeechText" class="truncate"></span>
+          </div>
+
+          <!-- AI応答本文（UDフォント・高コントラスト・ルビ対応） -->
+          <div id="aiResponseBoard" class="flex-1 min-h-0 overflow-y-auto led-board-scroll pr-1 flex items-center">
+            <div id="aiResponseContent" class="w-full text-xl sm:text-2xl lg:text-[26px] leading-[1.85] tracking-wider font-bold text-amber-300">
+              こんにちは！ わたしは AIサポーター です。<br>
+              したの マイクボタンを おして、なんでも はなしかけてね！
+            </div>
+          </div>
+
+          <!-- 読み込み中インジケーター -->
+          <div id="aiLoadingOverlay" class="hidden absolute inset-0 bg-black/85 backdrop-blur-xs flex flex-col items-center justify-center gap-3 z-20">
+            <div class="flex gap-2">
+              <span class="w-4 h-4 rounded-full bg-amber-400 animate-bounce" style="animation-delay:0s"></span>
+              <span class="w-4 h-4 rounded-full bg-emerald-400 animate-bounce" style="animation-delay:0.15s"></span>
+              <span class="w-4 h-4 rounded-full bg-sky-400 animate-bounce" style="animation-delay:0.3s"></span>
+            </div>
+            <p class="text-lg sm:text-xl font-bold text-amber-300">かんがえて いるよ… まってね！</p>
+          </div>
+
+          <!-- 2. キーワード連動メディアボタン（動画・絵カード・PDF資料・音楽の再生＆全画面拡大） -->
+          <div id="matchedMediaBar" class="hidden shrink-0 mt-2.5 pt-2.5 border-t border-slate-800 flex flex-wrap items-center gap-2">
+            <!-- JSで各メディアの「再生」「おおきく みる（全画面）」ボタンを動的挿入 -->
+          </div>
+        </div>
+
+        <!-- 3. 次の検索4択ボタンエリア（「こんなことも、しらべるよ？」） -->
+        <div id="choiceButtonsPanel" class="shrink-0 bg-slate-900/95 border border-slate-700/90 rounded-2xl p-2 sm:p-2.5 shadow-lg">
+          <div class="flex items-center justify-between mb-1.5 px-1">
+            <span class="text-xs sm:text-sm font-bold text-emerald-300 flex items-center gap-1.5">
+              <span>✨</span>
+              <span>こんなことも、しらべるよ？（きになるボタンを おしてね！）</span>
+            </span>
+          </div>
+          <div id="choiceButtonsGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
+            <!-- 初期4択ボタン -->
+            <button type="button" onclick="handleChoiceClick('きょうの てんき を おしえて')"
+              class="p-2 rounded-xl bg-slate-800 hover:bg-indigo-600 border border-slate-600 text-left flex items-center gap-2 transition active:scale-95">
+              <span class="text-xl sm:text-2xl shrink-0">☀️</span>
+              <span class="text-xs sm:text-sm font-bold text-white leading-tight line-clamp-2">きょうの てんき</span>
+            </button>
+            <button type="button" onclick="handleChoiceClick('きゅうしょく の えいよう を しらべて')"
+              class="p-2 rounded-xl bg-slate-800 hover:bg-indigo-600 border border-slate-600 text-left flex items-center gap-2 transition active:scale-95">
+              <span class="text-xl sm:text-2xl shrink-0">🍱</span>
+              <span class="text-xs sm:text-sm font-bold text-white leading-tight line-clamp-2">たべものの えいよう</span>
+            </button>
+            <button type="button" onclick="handleChoiceClick('てあらい の しかた を おしえて')"
+              class="p-2 rounded-xl bg-slate-800 hover:bg-indigo-600 border border-slate-600 text-left flex items-center gap-2 transition active:scale-95">
+              <span class="text-xl sm:text-2xl shrink-0">🧼</span>
+              <span class="text-xs sm:text-sm font-bold text-white leading-tight line-clamp-2">てあらい の しかた</span>
+            </button>
+            <button type="button" onclick="handleChoiceClick('どうぶつ の クイズ を おしえて')"
+              class="p-2 rounded-xl bg-slate-800 hover:bg-indigo-600 border border-slate-600 text-left flex items-center gap-2 transition active:scale-95">
+              <span class="text-xl sm:text-2xl shrink-0">🦁</span>
+              <span class="text-xs sm:text-sm font-bold text-white leading-tight line-clamp-2">どうぶつ クイズ</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4. 音声操作パネル（手動「✅ おわり」ボタン確定方式 / 自動確定方式 + キーボード切替） -->
+        <div class="shrink-0 bg-slate-900 border-2 border-slate-700 rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 shadow-xl">
+          <!-- マイク開始／停止ボタン -->
+          <button id="micActionBtn" type="button" onclick="toggleMicrophone()"
+            class="h-14 sm:h-16 px-4 sm:px-6 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-base sm:text-lg shadow-lg flex items-center justify-center gap-2 transition active:scale-95 shrink-0">
+            <span id="micBtnIcon" class="text-2xl">🎤</span>
+            <span id="micBtnText">おしゃべり する</span>
+          </button>
+
+          <!-- 手動確定方式の「✅ おわり（そうしん）」ボタン（録音中に大きく出現） -->
+          <button id="finishSpeechBtn" type="button" onclick="confirmManualSpeech()"
+            class="hidden h-14 sm:h-16 px-5 sm:px-7 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-base sm:text-xl shadow-lg border-2 border-white flex items-center justify-center gap-2 transition active:scale-95 shrink-0">
+            <span class="text-2xl">✅</span>
+            <span>おわり（そうしん）</span>
+          </button>
+
+          <!-- 音声認識中のリアルタイム字幕 / テキスト入力ボックス -->
+          <div class="flex-1 min-w-0 h-14 sm:h-16 bg-slate-950 border border-slate-700 rounded-2xl px-3 flex items-center gap-2">
+            <input id="manualTextInput" type="text"
+              placeholder="ここにも もじ を いれられるよ…"
+              onkeydown="if(event.key==='Enter') submitTextInput()"
+              class="w-full bg-transparent text-white text-base sm:text-lg font-bold placeholder-slate-500 focus:outline-none" />
+            <button type="button" onclick="submitTextInput()"
+              class="h-10 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shrink-0 transition active:scale-95">
+              おくる
+            </button>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <!-- =====================================================================
+       ユニバーサル全画面拡大モーダル（画像・動画・PDF資料・音楽対応）
+       ===================================================================== -->
+  <div id="universalMediaModal" class="hidden fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-3 sm:p-5">
+    <div class="w-full max-w-6xl flex items-center justify-between gap-3 mb-2.5 shrink-0">
+      <h2 id="universalModalTitle" class="text-xl sm:text-2xl font-black text-amber-300 truncate">しりょう</h2>
+      <div class="flex items-center gap-2 shrink-0">
+        <a id="universalModalExternalBtn" href="#" target="_blank" rel="noopener noreferrer"
+          class="hidden px-4 py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm sm:text-base shadow-lg">
+          ↗ べつがめんで ひらく
+        </a>
+        <button type="button" onclick="closeUniversalMediaModal()"
+          class="px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-base sm:text-lg shadow-xl border-2 border-white">
+          ✖ とじる
+        </button>
+      </div>
+    </div>
+
+    <div class="flex-1 min-h-0 w-full max-w-6xl bg-slate-900 rounded-3xl border-2 border-slate-700 p-2 sm:p-4 flex items-center justify-center overflow-hidden">
+      <!-- 1. 画像拡大表示 -->
+      <img id="universalModalImg" src="" alt="かくだい絵カード" class="hidden max-w-full max-h-full object-contain rounded-2xl" />
+
+      <!-- 2. 動画全画面拡大表示 -->
+      <video id="universalModalVideo" controls playsinline class="hidden w-full h-full object-contain rounded-2xl bg-black"></video>
+      <iframe id="universalModalYoutube" class="hidden w-full h-full rounded-2xl bg-black border-0" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen></iframe>
+
+      <!-- 3. PDF資料全画面表示 -->
+      <iframe id="universalModalPdf" src="" title="PDFしりょう" class="hidden w-full h-full rounded-2xl bg-white border-0"></iframe>
+
+      <!-- 4. 音楽（MP3）拡大プレイヤー表示 -->
+      <div id="universalModalAudioBox" class="hidden flex flex-col items-center justify-center gap-6 p-6 text-center w-full max-w-lg">
+        <div class="w-28 h-28 rounded-full bg-purple-600/30 border-4 border-purple-400 flex items-center justify-center text-6xl animate-pulse">
+          🎵
+        </div>
+        <p id="universalModalAudioName" class="text-xl sm:text-2xl font-black text-white"></p>
+        <audio id="universalModalAudio" controls class="w-full"></audio>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       ② 教員用：設定・教材管理画面（モーダルオーバーレイ）
+       ===================================================================== -->
+  <div id="teacherSettingsModal" class="hidden fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col overflow-hidden">
+    <!-- 教員画面ヘッダー -->
+    <div class="shrink-0 bg-slate-900 border-b border-slate-700 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">👩‍🏫</span>
+        <div>
+          <h2 class="text-lg sm:text-xl font-bold text-white">教員用：授業設定・教材管理パネル</h2>
+          <p class="text-xs text-slate-400">設定内容は自動保存されます（PDF・画像・動画・音楽は大容量IndexedDBに保存）</p>
+        </div>
+      </div>
+
+      <!-- 授業プロファイル切替ドロップダウン ＆ 操作 -->
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="text-xs font-bold text-slate-300">授業プロファイル：</label>
+        <select id="profileSelect" onchange="switchProfile(this.value)"
+          class="bg-slate-800 border border-slate-600 text-white text-sm font-bold rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-400">
+        </select>
+        <button type="button" onclick="createNewProfile()" class="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">＋ 新規</button>
+        <button type="button" onclick="duplicateCurrentProfile()" class="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold">📋 複製</button>
+        <button type="button" onclick="deleteCurrentProfile()" class="px-3 py-2 rounded-xl bg-rose-900/80 hover:bg-rose-700 text-rose-200 text-xs font-bold">🗑️ 削除</button>
+        <button type="button" onclick="closeTeacherSettings()"
+          class="ml-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg">
+          ✅ 授業画面にもどる
+        </button>
+      </div>
+    </div>
+
+    <!-- タブナビゲーション -->
+    <div class="shrink-0 bg-slate-900/60 border-b border-slate-800 px-4 sm:px-6 pt-2 flex gap-2 overflow-x-auto">
+      <button type="button" data-tab="tabGeneral" onclick="switchTeacherTab('tabGeneral')"
+        class="teacher-tab-btn px-4 py-2.5 rounded-t-xl font-bold text-sm bg-slate-800 text-amber-300 border-t border-x border-slate-700">
+        ⚙️ 1. 授業・アバター・文字表記
+      </button>
+      <button type="button" data-tab="tabMedia" onclick="switchTeacherTab('tabMedia')"
+        class="teacher-tab-btn px-4 py-2.5 rounded-t-xl font-bold text-sm bg-slate-900/50 text-slate-400 hover:text-white">
+        📁 2. 教材・メディア登録（PDF / 画像 / 動画 / MP3）
+      </button>
+      <button type="button" data-tab="tabDocx" onclick="switchTeacherTab('tabDocx')"
+        class="teacher-tab-btn px-4 py-2.5 rounded-t-xl font-bold text-sm bg-slate-900/50 text-slate-400 hover:text-white">
+        📄 3. 授業設定シート入出力（Word / PDF）
+      </button>
+      <button type="button" data-tab="tabApi" onclick="switchTeacherTab('tabApi')"
+        class="teacher-tab-btn px-4 py-2.5 rounded-t-xl font-bold text-sm bg-slate-900/50 text-slate-400 hover:text-white">
+        🔑 4. API接続・セキュリティ設定
+      </button>
+    </div>
+
+    <!-- タブコンテンツ領域（教員画面内は縦スクロール可能） -->
+    <div class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
+      <div class="max-w-5xl mx-auto space-y-6 pb-8">
+
+        <!-- ===========================================================
+             TAB 1: 授業・アバター・文字表記・音声入力方式
+             =========================================================== -->
+        <div id="tabGeneral" class="teacher-tab-pane space-y-6">
+          <!-- 基本情報 -->
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
+            <h3 class="text-base font-bold text-amber-300 border-b border-slate-800 pb-2">📌 授業の基本設定</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">授業名（プロファイル名）</label>
+                <input id="setClassName" type="text" onchange="saveGeneralSettings()"
+                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">本日のめあて（画面上部に表示）</label>
+                <input id="setClassGoal" type="text" onchange="saveGeneralSettings()"
+                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-emerald-300 mb-1">AIの名前（初期値：AIサポーター）</label>
+                <input id="setAiName" type="text" onchange="saveGeneralSettings()"
+                  placeholder="AIサポーター"
+                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-300 mb-1">AIへの役割・授業の配慮指示（システムプロンプト補足）</label>
+              <textarea id="setSystemPrompt" rows="2" onchange="saveGeneralSettings()"
+                placeholder="例：優しく褒めながら短く答えてください。作業学習の梱包手順をサポートします。"
+                class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white"></textarea>
+            </div>
+          </div>
+
+          <!-- 文字表記ルール ＆ 音声入力方式 -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-3">
+              <h3 class="text-base font-bold text-amber-300 border-b border-slate-800 pb-2">🔤 文字表記・漢字レベル（全ルビ対応）</h3>
+              <label class="block text-xs font-bold text-slate-300">使用する漢字の上限学年</label>
+              <select id="setKanjiLevel" onchange="saveGeneralSettings()"
+                class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white">
+                <option value="hiragana">ひらがなのみ（初期設定・分かち書き）</option>
+                <option value="grade1">小学1年生までの漢字（すべてふりがな付き）</option>
+                <option value="grade2">小学2年生までの漢字（すべてふりがな付き）</option>
+                <option value="grade3">小学3年生までの漢字（すべてふりがな付き）</option>
+                <option value="grade4">小学4年生までの漢字（すべてふりがな付き）</option>
+                <option value="grade5">小学5年生までの漢字（すべてふりがな付き）</option>
+                <option value="grade6">小学6年生までの漢字（すべてふりがな付き）</option>
+                <option value="jh1">中学1年生までの漢字（すべてふりがな付き）</option>
+                <option value="jh2">中学2年生までの漢字（すべてふりがな付き）</option>
+                <option value="jh3">中学3年生までの漢字（すべてふりがな付き）</option>
+              </select>
+              <p class="text-xs text-slate-400">※漢字を使う設定の場合、すべての漢字に自動でルビ（ふりがな）が付きます。音声読み上げ時は二重読みを自動防止します。</p>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-3">
+              <h3 class="text-base font-bold text-amber-300 border-b border-slate-800 pb-2">🎤 音声入力の確定方式</h3>
+              <div class="space-y-2">
+                <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-950 border border-slate-700 cursor-pointer">
+                  <input type="radio" name="speechMode" value="manual" onchange="saveGeneralSettings()" class="mt-1 accent-emerald-400" />
+                  <div>
+                    <div class="text-sm font-bold text-emerald-300">✅ 「おわり（そうしん）」ボタン確定方式（おすすめ）</div>
+                    <div class="text-xs text-slate-400">話し終わったあと、児童が自分で緑色の「おわり」ボタンを押して送信します。途中で言葉に詰まっても切れません。</div>
+                  </div>
+                </label>
+                <label class="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-950 border border-slate-700 cursor-pointer">
+                  <input type="radio" name="speechMode" value="auto" onchange="saveGeneralSettings()" class="mt-1 accent-emerald-400" />
+                  <div>
+                    <div class="text-sm font-bold text-white">⚡ 自動確定方式</div>
+                    <div class="text-xs text-slate-400">話し終わって無音になると自動的に音声認識を確定して送信します。</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- アバター設定 -->
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
+            <h3 class="text-base font-bold text-amber-300 border-b border-slate-800 pb-2">🤖 普段の待機・会話アバター設定</h3>
+            <p class="text-xs text-slate-300">※「LEDドット顔」や「自作画像」を選んでいる場合でも、教材タブで登録した動画・音楽のトリガーキーワードが出ると自動的に再生へ切り替わります。</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label class="p-3.5 rounded-2xl bg-slate-950 border-2 border-slate-700 cursor-pointer flex flex-col gap-1">
+                <div class="flex items-center gap-2">
+                  <input type="radio" name="avatarType" value="led" onchange="saveGeneralSettings()" class="accent-amber-400" />
+                  <span class="font-bold text-sm text-white">1. LEDドットマトリクス顔</span>
+                </div>
+                <span class="text-xs text-slate-400">黒背景に高コントラスト発光。まばたき・口パク・笑顔を表現。</span>
+              </label>
+
+              <label class="p-3.5 rounded-2xl bg-slate-950 border-2 border-slate-700 cursor-pointer flex flex-col gap-1">
+                <div class="flex items-center gap-2">
+                  <input type="radio" name="avatarType" value="image" onchange="saveGeneralSettings()" class="accent-amber-400" />
+                  <span class="font-bold text-sm text-white">2. 自作画像アバター</span>
+                </div>
+                <span class="text-xs text-slate-400">PNG/JPGをアップロード。ドット絵変換や口パクアニメに対応。</span>
+              </label>
+
+              <label class="p-3.5 rounded-2xl bg-slate-950 border-2 border-slate-700 cursor-pointer flex flex-col gap-1">
+                <div class="flex items-center gap-2">
+                  <input type="radio" name="avatarType" value="video" onchange="saveGeneralSettings()" class="accent-amber-400" />
+                  <span class="font-bold text-sm text-white">3. カスタム待機動画 (MP4)</span>
+                </div>
+                <span class="text-xs text-slate-400">待機ループ用のMP4動画を常時再生します。</span>
+              </label>
+            </div>
+
+            <!-- 1. LEDカラー選択 -->
+            <div id="ledOptionBox" class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-wrap items-center gap-4">
+              <span class="text-xs font-bold text-slate-300">LED発光カラー：</span>
+              <select id="setLedColor" onchange="saveGeneralSettings()" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-xs font-bold text-white">
+                <option value="#22c55e">エメラルドグリーン（初期値）</option>
+                <option value="#facc15">電光イエロー</option>
+                <option value="#38bdf8">スカイシアン</option>
+                <option value="#f472b6">コーラルピンク</option>
+              </select>
+            </div>
+
+            <!-- 2. 自作画像アップロード ＆ モード -->
+            <div id="imageOptionBox" class="hidden p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+              <div class="flex flex-wrap items-center gap-3">
+                <input id="avatarImageUpload" type="file" accept="image/png,image/jpeg,image/webp" onchange="handleAvatarImageUpload(this)"
+                  class="text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500" />
+                <select id="setImageAnimMode" onchange="saveGeneralSettings()" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs font-bold text-white">
+                  <option value="mouth">口パク・表情アニメーションモード</option>
+                  <option value="pixel">ドット絵変換モード（レトロLED風）</option>
+                </select>
+              </div>
+              <p id="avatarImageStatus" class="text-xs text-emerald-400"></p>
+            </div>
+
+            <!-- 3. カスタム待機動画アップロード -->
+            <div id="videoOptionBox" class="hidden p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+              <input id="idleVideoUpload" type="file" accept="video/mp4,video/webm" onchange="handleIdleVideoUpload(this)"
+                class="text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500" />
+              <p id="idleVideoStatus" class="text-xs text-emerald-400"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===========================================================
+             TAB 2: 教材・メディア登録（PDF / 絵カード / MP4動画 / MP3音楽）
+             =========================================================== -->
+        <div id="tabMedia" class="teacher-tab-pane hidden space-y-6">
+          <!-- IndexedDB 容量ステータスバー -->
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 class="text-base font-bold text-amber-300">📁 教材・メディア統合管理（大容量 IndexedDB 保存）</h3>
+              <p class="text-xs text-slate-300">PDF資料・画像（絵カード）・動画（MP4）・音楽（MP3）をすべてキーワード連動＆全画面拡大表示できます。</p>
+            </div>
+            <div class="px-4 py-2 rounded-xl bg-slate-950 border border-slate-700 text-right">
+              <div class="text-[11px] text-slate-400">IndexedDB 合計使用容量</div>
+              <div id="indexedDbUsageText" class="text-base font-black text-emerald-400">0.00 MB</div>
+            </div>
+          </div>
+
+          <!-- 新規アップロードフォーム -->
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
+            <h4 class="text-sm font-bold text-white">➕ 新しい教材・メディアを追加</h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">1. 種類を選択</label>
+                <select id="mediaUploadType" onchange="onMediaUploadTypeChange()"
+                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-bold text-white">
+                  <option value="video">🎬 動画（MP4：キーワード連動再生＆拡大）</option>
+                  <option value="youtube">📺 YouTube動画（URL：キーワード連動再生＆拡大）</option>
+                  <option value="image">🖼️ 画像（絵カード：表示＆全画面拡大）</option>
+                  <option value="audio">🎵 音楽・音声（MP3：キーワード連動再生）</option>
+                  <option value="pdf">📄 PDF資料（AI内容読込＆全画面拡大）</option>
+                </select>
+              </div>
+              <div id="mediaFileWrapper">
+                <label class="block text-xs font-bold text-slate-300 mb-1">2. ファイルを選択</label>
+                <input id="mediaFileInput" type="file" accept=".pdf,image/*,video/mp4,video/webm,audio/mpeg,audio/mp3,audio/wav,audio/mp4,audio/*"
+                  class="w-full text-xs text-slate-300 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white" />
+              </div>
+              <div id="mediaYoutubeUrlWrapper" class="hidden space-y-2">
+                <div>
+                  <label class="block text-xs font-bold text-rose-300 mb-1">2. YouTube の URL を貼り付け</label>
+                  <input id="mediaYoutubeUrlInput" type="url" placeholder="https://www.youtube.com/watch?v=..."
+                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white" />
+                </div>
+                <div>
+                  <input id="mediaYoutubeTitleInput" type="text" placeholder="ボタン表示タイトル（任意・例：てあらいのうた）"
+                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white" />
+                </div>
+              </div>
+              <div id="mediaKeywordWrapper">
+                <label id="mediaKeywordLabel" class="block text-xs font-bold text-slate-300 mb-1">3. トリガーキーワード（カンマ区切り）</label>
+                <input id="mediaKeywordsInput" type="text" placeholder="例：てあらい, あらいかた, せっけん"
+                  class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white" />
+                <p id="mediaKeywordHint" class="text-[11px] text-slate-400 mt-1">会話中にこの言葉が出ると自動で再生・表示します。</p>
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button type="button" onclick="registerMediaItem()"
+                class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow">
+                💾 登録して保存する
+              </button>
+            </div>
+          </div>
+
+          <!-- MP4 / MP3 テスト再生用インライン検証ボックス -->
+          <div id="mediaTestBox" class="hidden bg-slate-900 border-2 border-sky-500 rounded-2xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 id="mediaTestTitle" class="text-sm font-bold text-sky-300">▶️ ブラウザ再生・デコード検証</h4>
+              <button type="button" onclick="closeMediaTestBox()" class="text-xs px-3 py-1 rounded-lg bg-slate-800 text-slate-300">とじる</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div>
+                <video id="mp4TestPlayer" controls playsinline class="w-full max-h-48 bg-black rounded-xl border border-slate-700"></video>
+                <iframe id="youtubeTestPlayer" class="hidden w-full h-48 bg-black rounded-xl border border-slate-700" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>
+                <audio id="mp3TestPlayer" controls class="hidden w-full mt-2"></audio>
+              </div>
+              <div id="mediaTestResult" class="text-xs sm:text-sm space-y-1.5 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                検証中...
+              </div>
+            </div>
+          </div>
+
+          <!-- 登録済み教材・メディア一覧 -->
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-3">
+            <h4 class="text-sm font-bold text-white">📋 登録済みの教材・メディア一覧（PDF / 画像 / 動画 / 音楽）</h4>
+            <div id="mediaListContainer" class="space-y-2.5">
+              <p class="text-xs text-slate-400">まだ登録されていません。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===========================================================
+             TAB 3: 授業設定シート入出力（Word .docx / PDF ・JSON不使用）
+             =========================================================== -->
+        <div id="tabDocx" class="teacher-tab-pane hidden space-y-6">
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
+            <h3 class="text-base font-bold text-amber-300 border-b border-slate-800 pb-2">📤 Word形式（.docx）で授業設定をダウンロード</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              教員になじみのある <strong>Microsoft Word（.docx）形式</strong> で現在の授業設定や白紙テンプレートを書き出せます。<br>
+              Word や Google ドキュメントでそのまま開いて編集し、下の枠にドラッグ＆ドロップするだけで設定を一括反映できます。
+            </p>
+            <div class="flex flex-wrap gap-3">
+              <button type="button" onclick="exportSettingsAsDocx(false)"
+                class="px-5 py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm shadow flex items-center gap-2">
+                <span>📘</span>
+                <span>現在の授業設定を Word (.docx) でダウンロード</span>
+              </button>
+              <button type="button" onclick="exportSettingsAsDocx(true)"
+                class="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 font-bold text-sm shadow flex items-center gap-2">
+                <span>📝</span>
+                <span>記入用テンプレートを Word (.docx) でダウンロード</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Word / PDF ドラッグ＆ドロップ読み込みエリア -->
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-4">
+            <h3 class="text-base font-bold text-amber-300 border-b border-slate-800 pb-2">📥 Word（.docx）または PDF（.pdf）から設定を一括読み込み</h3>
+            <div id="docDropZone"
+              ondragover="event.preventDefault(); this.classList.add('border-emerald-400', 'bg-slate-800/80');"
+              ondragleave="this.classList.remove('border-emerald-400', 'bg-slate-800/80');"
+              ondrop="handleDocDrop(event)"
+              onclick="document.getElementById('docFileInput').click()"
+              class="border-2 border-dashed border-slate-600 hover:border-indigo-400 rounded-2xl p-8 text-center cursor-pointer transition space-y-2 bg-slate-950/60">
+              <div class="text-4xl">📄📥</div>
+              <p class="text-sm sm:text-base font-bold text-white">ここに Word (.docx) または PDF (.pdf) ファイルをドラッグ＆ドロップ</p>
+              <p class="text-xs text-slate-400">またはクリックしてファイルを選択してください（授業名・AIの名前・文字レベル・キャラ設定・めあてを自動抽出）</p>
+              <input id="docFileInput" type="file" accept=".docx,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
+                onchange="handleDocFileSelect(this)" class="hidden" />
+            </div>
+            <div id="docImportLog" class="hidden p-3.5 rounded-xl bg-slate-950 border border-emerald-500/50 text-xs text-emerald-300 whitespace-pre-wrap"></div>
+          </div>
+        </div>
+
+        <!-- ===========================================================
+             TAB 4: API接続・セキュリティ設定（保存後非表示・コピー完全禁止）
+             =========================================================== -->
+        <div id="tabApi" class="teacher-tab-pane hidden space-y-6">
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 space-y-5">
+            <div class="border-b border-slate-800 pb-3 space-y-1">
+              <h3 class="text-base font-bold text-amber-300">🔐 API接続モード選択（コード内にキー埋め込みなし・高セキュリティ設計）</h3>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                ・入力欄は<strong>コピー・切り取り・ドラッグ・自動補完を完全禁止</strong>しています。<br>
+                ・<strong>「💾 保存する」</strong>を押すと入力欄の値は即座に消去・非表示となり、画面上に伏せ字が残り続けません。
+              </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label class="p-3.5 rounded-2xl bg-slate-950 border-2 border-slate-700 cursor-pointer">
+                <div class="flex items-center gap-2 font-bold text-sm text-amber-300">
+                  <input type="radio" name="apiConnMode" value="demo" onchange="onApiConnModeChange(this.value)" class="accent-amber-400" />
+                  <span>1. デモ動作確認モード</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">APIキー不要。LED顔・動画/音楽切替・絵カード・PDF表示などを端末内のみで安全に体験できます。</p>
+              </label>
+
+              <label class="p-3.5 rounded-2xl bg-slate-950 border-2 border-slate-700 cursor-pointer">
+                <div class="flex items-center gap-2 font-bold text-sm text-emerald-300">
+                  <input type="radio" name="apiConnMode" value="direct" onchange="onApiConnModeChange(this.value)" class="accent-emerald-400" />
+                  <span>2. 個別APIキーモード（直接通信）</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">教員個人の Gemini APIキーを入力し、ブラウザから直接Google APIへ通信します（※個人端末向け）。</p>
+              </label>
+
+              <label class="p-3.5 rounded-2xl bg-slate-950 border-2 border-slate-700 cursor-pointer">
+                <div class="flex items-center gap-2 font-bold text-sm text-sky-300">
+                  <input type="radio" name="apiConnMode" value="gas" onchange="onApiConnModeChange(this.value)" class="accent-sky-400" />
+                  <span>3. GAS中継モード（校内共有推奨）</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">APIキーを端末に保存せず、GAS WebアプリURLと「合言葉」のみで安全に中継通信します。</p>
+              </label>
+            </div>
+
+            <!-- 2. 個別APIキーモード設定エリア -->
+            <div id="directApiConfigBox" class="hidden p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+              <div class="p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs text-amber-200 leading-relaxed">
+                <strong>💡 セキュリティ上の使い分け：</strong><br>
+                このモードはブラウザから直接 Gemini API へ送信します。教員個人の検証用端末向けです。児童が触れる共用iPadや校内複数端末で運用する場合は、APIキーを端末に保持しない<strong>「3. GAS中継モード」</strong>のご利用をおすすめします。
+              </div>
+
+              <!-- 保存済みステータスカード（入力欄を完全に隠した状態） -->
+              <div id="directApiSavedCard" class="hidden p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/50 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                  <span class="text-2xl">✅</span>
+                  <div>
+                    <div class="text-sm font-bold text-emerald-300">保存しました（個別 Gemini APIキー設定済み）</div>
+                    <div class="text-xs text-slate-300">セキュリティ保護のため、入力欄は消去・非表示にしています。</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button type="button" onclick="startEditDirectApi()"
+                    class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 text-xs font-bold">
+                    ✏️ 編集（再入力）する
+                  </button>
+                  <button type="button" onclick="deleteDirectApiSettings()"
+                    class="px-4 py-2 rounded-xl bg-rose-900/80 hover:bg-rose-700 text-rose-100 text-xs font-bold">
+                    🗑️ 削除する
+                  </button>
+                </div>
+              </div>
+
+              <!-- 新規・再入力フォーム（保存ボタンを押すまで表示） -->
+              <div id="directApiEditForm" class="space-y-3">
+                <div>
+                  <label class="block text-xs font-bold text-emerald-300 mb-1">Gemini API キー（コピー・切り取り不可／保存後自動非表示）</label>
+                  <input id="inputGeminiApiKey" type="password" autocomplete="new-password" spellcheck="false"
+                    oncopy="return false" oncut="return false" ondragstart="return false" oncontextmenu="return false"
+                    placeholder="AIzaSy... を入力してください"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white select-none" />
+                  <p class="text-[11px] text-slate-400 mt-1">使用モデル：gemini-3.8-flash（無料枠・有料枠自動切替 ＆ PDFマルチモーダル解析対応）</p>
+                </div>
+                <div class="flex items-center justify-end gap-2">
+                  <button id="cancelDirectApiBtn" type="button" onclick="cancelEditDirectApi()"
+                    class="hidden px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold">
+                    キャンセル
+                  </button>
+                  <button type="button" onclick="saveDirectApiSettings()"
+                    class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg">
+                    💾 保存する
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. GAS中継モード設定エリア -->
+            <div id="gasApiConfigBox" class="hidden p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+              <!-- 保存済みステータスカード（入力欄を完全に隠した状態） -->
+              <div id="gasApiSavedCard" class="hidden p-4 rounded-xl bg-sky-950/40 border border-sky-500/50 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">✅</span>
+                    <div>
+                      <div class="text-sm font-bold text-sky-300">保存しました（GAS中継URL・校内合言葉 設定済み）</div>
+                      <div class="text-xs text-slate-300">セキュリティ保護のため、入力欄は消去・非表示にしています。</div>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" onclick="testGasRelayConnection()"
+                      class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow">
+                      📡 接続テスト
+                    </button>
+                    <button type="button" onclick="startEditGasApi()"
+                      class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 text-xs font-bold">
+                      ✏️ 編集（再入力）する
+                    </button>
+                    <button type="button" onclick="deleteGasApiSettings()"
+                      class="px-4 py-2 rounded-xl bg-rose-900/80 hover:bg-rose-700 text-rose-100 text-xs font-bold">
+                      🗑️ 削除する
+                    </button>
+                  </div>
+                </div>
+                <div id="gasConnectionTestResult" class="hidden p-3 rounded-xl bg-slate-900 border border-slate-700 text-xs leading-relaxed"></div>
+              </div>
+
+              <!-- 新規・再入力フォーム（保存ボタンを押すまで表示） -->
+              <div id="gasApiEditForm" class="space-y-3">
+                <div>
+                  <label class="block text-xs font-bold text-sky-300 mb-1">GAS Webアプリ URL（コピー・切り取り不可／保存後自動非表示）</label>
+                  <input id="inputGasUrl" type="password" autocomplete="new-password" spellcheck="false"
+                    oncopy="return false" oncut="return false" ondragstart="return false" oncontextmenu="return false"
+                    placeholder="https://script.google.com/macros/s/...../exec"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white select-none" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-sky-300 mb-1">校内合言葉（パスコード・コピー不可／保存後自動非表示）</label>
+                  <input id="inputGasPasscode" type="password" autocomplete="new-password" spellcheck="false"
+                    oncopy="return false" oncut="return false" ondragstart="return false" oncontextmenu="return false"
+                    placeholder="例：sakura2026"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white select-none" />
+                </div>
+                <div class="flex items-center justify-end gap-2 pt-1">
+                  <button id="cancelGasApiBtn" type="button" onclick="cancelEditGasApi()"
+                    class="hidden px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold">
+                    キャンセル
+                  </button>
+                  <button type="button" onclick="saveGasApiSettings()"
+                    class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm shadow-lg">
+                    💾 保存する
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       カスタム通知トースト ＆ 確認ダイアログ（alert/confirm完全不使用）
+       ===================================================================== -->
+  <div id="toastBanner" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-2xl bg-slate-800 border-2 border-amber-400 text-white font-bold text-sm shadow-2xl"></div>
+
+  <div id="customConfirmModal" class="hidden fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border-2 border-slate-600 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+      <h3 id="confirmModalTitle" class="text-lg font-bold text-amber-300">かくにん</h3>
+      <p id="confirmModalMessage" class="text-sm text-slate-200 leading-relaxed"></p>
+      <div class="flex justify-end gap-2 pt-2">
+        <button id="confirmCancelBtn" type="button" class="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-sm">キャンセル</button>
+        <button id="confirmOkBtn" type="button" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm">実行する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       アプリケーション全ロジック（JavaScript）
+       ===================================================================== -->
+  <script>
+    /*************************************************************************
+     * 1. アプリケーション状態・授業プロファイル管理（localStorage）
+     *************************************************************************/
+    const STORAGE_PROFILES_KEY = 'ai_supporter_profiles_v1';
+    const STORAGE_ACTIVE_PROFILE_KEY = 'ai_supporter_active_profile_v1';
+    const STORAGE_API_KEY = 'ai_supporter_api_config_v1';
+
+    const DEFAULT_PROFILES = {
+      'profile_morning': {
+        id: 'profile_morning',
+        className: '1じかんめ：あさの かい',
+        classGoal: 'めあて：げんきに あいさつ しよう！',
+        aiName: 'AIサポーター',
+        systemPrompt: '特別支援学校の朝の会です。児童に寄り添い、元気よく分かりやすく短く答えてください。',
+        kanjiLevel: 'hiragana', // 'hiragana' | 'grade1'..'grade6' | 'jh1'..'jh3'
+        speechMode: 'manual',   // 'manual' ('おわり'ボタン) | 'auto'
+        avatarType: 'led',      // 'led' | 'image' | 'video'
+        ledColor: '#22c55e',
+        imageAnimMode: 'mouth', // 'mouth' | 'pixel'
+        customImageDataId: null,
+        idleVideoDataId: null
+      },
+      'profile_work': {
+        id: 'profile_work',
+        className: '3じかんめ：さぎょう がくしゅう',
+        classGoal: 'めあて：てじゅん を まもって ていねいに しよう！',
+        aiName: 'AIサポーター',
+        systemPrompt: '特別支援学校の作業学習（清掃・軽作業）です。手順をステップごとに優しく教えてください。',
+        kanjiLevel: 'grade2',
+        speechMode: 'manual',
+        avatarType: 'led',
+        ledColor: '#38bdf8',
+        imageAnimMode: 'mouth',
+        customImageDataId: null,
+        idleVideoDataId: null
+      }
+    };
+
+    let profiles = {};
+    let activeProfileId = 'profile_morning';
+    let apiConfig = {
+      mode: 'demo', // 'demo' | 'direct' | 'gas'
+      geminiKey: '',
+      gasUrl: '',
+      gasPasscode: ''
+    };
+    let isEditingDirectApi = false;
+    let isEditingGasApi = false;
+
+    // UI・音声・アニメーション用ランタイム状態
+    let autoTtsEnabled = true;
+    let ttsRate = 0.9;
+    let hasStartedConversation = false;
+    let lastTurnContext = null; // 直前1回分（1ターン）のやりとり記憶 { user: string, ai: string }
+    let currentResponseRawHtml = 'こんにちは！ わたしは AIサポーター です。<br>したの マイクボタンを おして、なんでも はなしかけてね！';
+    let avatarMood = 'idle'; // 'idle' | 'listening' | 'speaking' | 'happy'
+    let activeTriggerVideoUrl = null;
+    let activeTriggerVideoItem = null;
+    let activeTriggerAudioUrl = null;
+    let activeIdleVideoUrl = null;
+    let activeAvatarImageUrl = null;
+    let activeUniversalModalBlobUrl = null;
+
+    // 音声認識用
+    let recognition = null;
+    let isRecording = false;
+    let manualTranscriptBuffer = '';
+
+    /*************************************************************************
+     * 2. IndexedDB 初期化 ＆ 大容量メディア管理（PDF / 絵カード / MP4 / MP3）
+     *************************************************************************/
+    const DB_NAME = 'SpecialNeedsAISupporterDB';
+    const DB_VERSION = 1;
+    const STORE_MEDIA = 'media_items';
+    let dbInstance = null;
+
+    function initIndexedDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_MEDIA)) {
+            db.createObjectStore(STORE_MEDIA, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = (e) => {
+          dbInstance = e.target.result;
+          resolve(dbInstance);
+        };
+        req.onerror = (e) => {
+          console.error('IndexedDB error:', e);
+          reject(e);
+        };
+      });
+    }
+
+    function idbPutMedia(item) {
+      return new Promise((resolve, reject) => {
+        const tx = dbInstance.transaction(STORE_MEDIA, 'readwrite');
+        tx.objectStore(STORE_MEDIA).put(item);
+        tx.oncomplete = () => resolve();
+        tx.onerror = (e) => reject(e);
+      });
+    }
+
+    function idbGetAllMedia() {
+      return new Promise((resolve, reject) => {
+        if (!dbInstance) return resolve([]);
+        const tx = dbInstance.transaction(STORE_MEDIA, 'readonly');
+        const req = tx.objectStore(STORE_MEDIA).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = (e) => reject(e);
+      });
+    }
+
+    function idbGetMediaById(id) {
+      return new Promise((resolve, reject) => {
+        if (!dbInstance || !id) return resolve(null);
+        const tx = dbInstance.transaction(STORE_MEDIA, 'readonly');
+        const req = tx.objectStore(STORE_MEDIA).get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = (e) => reject(e);
+      });
+    }
+
+    function idbDeleteMedia(id) {
+      return new Promise((resolve, reject) => {
+        const tx = dbInstance.transaction(STORE_MEDIA, 'readwrite');
+        tx.objectStore(STORE_MEDIA).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = (e) => reject(e);
+      });
+    }
+
+    /*************************************************************************
+     * 3. 起動時初期化処理
+     *************************************************************************/
+    window.addEventListener('DOMContentLoaded', async () => {
+      loadAppState();
+      await initIndexedDB();
+      setupTeacherLongPressLock();
+      setupSecureInputGuards();
+      setupSpeechRecognition();
+      initLedCanvas();
+      await applyCurrentProfileToUI();
+      await refreshMediaListUI();
+
+      // ウィンドウリサイズ時のCanvas再計算
+      window.addEventListener('resize', resizeLedCanvas);
+    });
+
+    function setupSecureInputGuards() {
+      ['inputGeminiApiKey', 'inputGasUrl', 'inputGasPasscode'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        ['copy', 'cut', 'dragstart'].forEach(evt => {
+          el.addEventListener(evt, (e) => {
+            e.preventDefault();
+            showToast('セキュリティ保護のためコピー・切り取りはできません');
+          });
+        });
+      });
+    }
+
+    function encodeSecureStorage(obj) {
+      const jsonStr = JSON.stringify(obj);
+      const bytes = new TextEncoder().encode(jsonStr);
+      let bin = '';
+      bytes.forEach(b => bin += String.fromCharCode(b));
+      return 'SEC1:' + btoa(bin);
+    }
+
+    function decodeSecureStorage(raw) {
+      if (!raw) return null;
+      if (raw.startsWith('SEC1:')) {
+        const bin = atob(raw.slice(5));
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return JSON.parse(new TextDecoder().decode(bytes));
+      }
+      return JSON.parse(raw);
+    }
+
+    function loadAppState() {
+      try {
+        const savedProfiles = localStorage.getItem(STORAGE_PROFILES_KEY);
+        profiles = savedProfiles ? JSON.parse(savedProfiles) : JSON.parse(JSON.stringify(DEFAULT_PROFILES));
+        const savedActiveId = localStorage.getItem(STORAGE_ACTIVE_PROFILE_KEY);
+        if (savedActiveId && profiles[savedActiveId]) {
+          activeProfileId = savedActiveId;
+        } else {
+          activeProfileId = Object.keys(profiles)[0];
+        }
+        const savedApi = localStorage.getItem(STORAGE_API_KEY);
+        if (savedApi) {
+          const decoded = decodeSecureStorage(savedApi);
+          if (decoded) apiConfig = { ...apiConfig, ...decoded };
+        }
+      } catch (e) {
+        profiles = JSON.parse(JSON.stringify(DEFAULT_PROFILES));
+      }
+    }
+
+    function persistProfiles() {
+      localStorage.setItem(STORAGE_PROFILES_KEY, JSON.stringify(profiles));
+      localStorage.setItem(STORAGE_ACTIVE_PROFILE_KEY, activeProfileId);
+    }
+
+    function getCurrentProfile() {
+      return profiles[activeProfileId] || Object.values(profiles)[0];
+    }
+
+    function getEffectiveAiName(profile) {
+      const p = profile || getCurrentProfile();
+      return (p && p.aiName && p.aiName.trim()) ? p.aiName.trim() : 'AIサポーター';
+    }
+
+    async function applyCurrentProfileToUI() {
+      const profile = getCurrentProfile();
+      if (!profile) return;
+
+      const aiName = getEffectiveAiName(profile);
+
+      // ヘッダータイトル・めあて反映
+      document.getElementById('headerClassTitle').textContent = profile.className || 'じゅぎょう';
+      document.getElementById('headerClassGoal').textContent = profile.classGoal || '';
+
+      // 会話開始前であればウェルカムメッセージにAIの名前を反映
+      if (!hasStartedConversation) {
+        currentResponseRawHtml = `こんにちは！ わたしは ${escapeHtml(aiName)} です。<br>したの マイクボタンを おして、なんでも はなしかけてね！`;
+        document.getElementById('aiResponseContent').innerHTML = currentResponseRawHtml;
+      }
+
+      // APIモードバッジ反映
+      const badge = document.getElementById('apiModeBadge');
+      if (apiConfig.mode === 'direct') {
+        badge.textContent = '個別API接続';
+        badge.className = 'hidden sm:inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0';
+      } else if (apiConfig.mode === 'gas') {
+        badge.textContent = 'GAS中継接続';
+        badge.className = 'hidden sm:inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 shrink-0';
+      } else {
+        badge.textContent = 'デモモード';
+        badge.className = 'hidden sm:inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0';
+      }
+
+      // アバターコンテナ表示切替
+      const ledBox = document.getElementById('ledAvatarContainer');
+      const imgBox = document.getElementById('imageAvatarContainer');
+      const vidBox = document.getElementById('idleVideoContainer');
+      const customImg = document.getElementById('customAvatarImg');
+      const pixelCanvas = document.getElementById('pixelAvatarCanvas');
+      const idleVideo = document.getElementById('idleLoopVideo');
+
+      ledBox.classList.add('hidden');
+      imgBox.classList.add('hidden');
+      vidBox.classList.add('hidden');
+
+      if (profile.avatarType === 'image') {
+        imgBox.classList.remove('hidden');
+        const asset = await idbGetMediaById(profile.customImageDataId);
+        if (asset && asset.blob) {
+          if (activeAvatarImageUrl) URL.revokeObjectURL(activeAvatarImageUrl);
+          activeAvatarImageUrl = URL.createObjectURL(asset.blob);
+          customImg.onload = () => {
+            if (profile.imageAnimMode === 'pixel') {
+              renderPixelatedImage(customImg, pixelCanvas);
+              customImg.classList.add('hidden');
+              pixelCanvas.classList.remove('hidden');
+            } else {
+              pixelCanvas.classList.add('hidden');
+              customImg.classList.remove('hidden');
+            }
+          };
+          customImg.src = activeAvatarImageUrl;
+        } else {
+          // 未アップロード時はLED顔にフォールバック表示
+          imgBox.classList.add('hidden');
+          ledBox.classList.remove('hidden');
+          resizeLedCanvas();
+        }
+      } else if (profile.avatarType === 'video') {
+        vidBox.classList.remove('hidden');
+        const asset = await idbGetMediaById(profile.idleVideoDataId);
+        if (asset && asset.blob) {
+          if (activeIdleVideoUrl) URL.revokeObjectURL(activeIdleVideoUrl);
+          activeIdleVideoUrl = URL.createObjectURL(asset.blob);
+          idleVideo.src = activeIdleVideoUrl;
+          idleVideo.muted = true;
+          idleVideo.play().catch(() => {});
+        } else {
+          // 未アップロード時はLED顔にフォールバック表示
+          vidBox.classList.add('hidden');
+          ledBox.classList.remove('hidden');
+          resizeLedCanvas();
+        }
+      } else {
+        ledBox.classList.remove('hidden');
+        resizeLedCanvas();
+      }
+
+      setAvatarMood('idle');
+      updateMicButtonUI();
+    }
+
+    /*************************************************************************
+     * 4. 教員設定画面への「2秒長押し誤操作防止ロック」
+     *************************************************************************/
+    function setupTeacherLongPressLock() {
+      const btn = document.getElementById('teacherLockBtn');
+      const bar = document.getElementById('teacherLockProgress');
+      let pressTimer = null;
+
+      const startPress = (e) => {
+        if (e.type === 'mousedown' && e.button !== 0) return;
+        bar.style.transition = 'width 2s linear';
+        bar.style.width = '100%';
+        pressTimer = setTimeout(() => {
+          cancelPress();
+          openTeacherSettings();
+        }, 2000);
+      };
+
+      const cancelPress = () => {
+        if (pressTimer) {
+          clearTimeout(pressTimer);
+          pressTimer = null;
+        }
+        bar.style.transition = 'width 0.15s ease-out';
+        bar.style.width = '0%';
+      };
+
+      btn.addEventListener('mousedown', startPress);
+      btn.addEventListener('touchstart', startPress, { passive: true });
+      btn.addEventListener('mouseup', cancelPress);
+      btn.addEventListener('mouseleave', cancelPress);
+      btn.addEventListener('touchend', cancelPress);
+      btn.addEventListener('touchcancel', cancelPress);
+    }
+
+    async function openTeacherSettings() {
+      isEditingDirectApi = false;
+      isEditingGasApi = false;
+      await populateTeacherSettingsForm();
+      document.getElementById('teacherSettingsModal').classList.remove('hidden');
+    }
+
+    function closeTeacherSettings() {
+      clearApiInputElements();
+      isEditingDirectApi = false;
+      isEditingGasApi = false;
+      document.getElementById('teacherSettingsModal').classList.add('hidden');
+      applyCurrentProfileToUI();
+    }
+
+    function switchTeacherTab(tabId) {
+      document.querySelectorAll('.teacher-tab-pane').forEach(el => el.classList.add('hidden'));
+      document.getElementById(tabId).classList.remove('hidden');
+
+      document.querySelectorAll('.teacher-tab-btn').forEach(btn => {
+        if (btn.dataset.tab === tabId) {
+          btn.className = 'teacher-tab-btn px-4 py-2.5 rounded-t-xl font-bold text-sm bg-slate-800 text-amber-300 border-t border-x border-slate-700';
+        } else {
+          btn.className = 'teacher-tab-btn px-4 py-2.5 rounded-t-xl font-bold text-sm bg-slate-900/50 text-slate-400 hover:text-white';
+        }
+      });
+
+      if (tabId === 'tabMedia') {
+        refreshMediaListUI();
+      }
+    }
+
+    /*************************************************************************
+     * 5. LEDドットマトリクス顔 ＆ 3種アバター描画エンジン
+     *************************************************************************/
+    let ledCanvas, ledCtx;
+    let blinkTimer = 0;
+    let isBlinking = false;
+    let mouthPhase = 0;
+
+    function initLedCanvas() {
+      ledCanvas = document.getElementById('ledCanvas');
+      ledCtx = ledCanvas.getContext('2d');
+      resizeLedCanvas();
+      requestAnimationFrame(renderLedLoop);
+    }
+
+    function resizeLedCanvas() {
+      if (!ledCanvas) return;
+      const parent = ledCanvas.parentElement;
+      if (!parent) return;
+      const rect = parent.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        ledCanvas.width = Math.floor(rect.width);
+        ledCanvas.height = Math.floor(rect.height);
+      }
+    }
+
+    function renderLedLoop(timestamp) {
+      const profile = getCurrentProfile();
+      if (profile && ledCtx && ledCanvas.width > 0 && !document.getElementById('ledAvatarContainer').classList.contains('hidden')) {
+        drawLedDotFace(timestamp, profile.ledColor || '#22c55e');
+      }
+      requestAnimationFrame(renderLedLoop);
+    }
+
+    function drawLedDotFace(timestamp, colorHex) {
+      const w = ledCanvas.width;
+      const h = ledCanvas.height;
+      ledCtx.fillStyle = '#030712';
+      ledCtx.fillRect(0, 0, w, h);
+
+      // グリッド設定（24列 x 20行のドットマトリクス）
+      const cols = 24;
+      const rows = 20;
+      const cellSize = Math.floor(Math.min(w / (cols + 2), h / (rows + 2)));
+      const offsetX = Math.floor((w - cols * cellSize) / 2);
+      const offsetY = Math.floor((h - rows * cellSize) / 2);
+      const radius = Math.max(2, Math.floor(cellSize * 0.38));
+
+      // まばたき制御
+      if (timestamp - blinkTimer > 3400) {
+        isBlinking = true;
+        if (timestamp - blinkTimer > 3580) {
+          isBlinking = false;
+          blinkTimer = timestamp;
+        }
+      }
+
+      // 呼吸リズム（上下微振動）
+      const breatheOffset = (avatarMood === 'idle' || avatarMood === 'happy') ? Math.round(Math.sin(timestamp / 500) * 0.45) : 0;
+
+      // 口パク位相
+      if (avatarMood === 'speaking') {
+        mouthPhase = Math.floor(timestamp / 130) % 3;
+      } else {
+        mouthPhase = 0;
+      }
+
+      // ドット点灯マップ作成
+      const grid = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+      // 顔の輪郭（角丸フレーム）
+      for (let r = 1; r <= 18; r++) {
+        for (let c = 2; c <= 21; c++) {
+          const isEdge = (r === 1 || r === 18 || c === 2 || c === 21);
+          const isCorner = (r <= 2 && c <= 3) || (r <= 2 && c >= 20) || (r >= 17 && c <= 3) || (r >= 17 && c >= 20);
+          if (isEdge && !isCorner) {
+            grid[r][c] = 2; // 弱発光フレーム
+          }
+        }
+      }
+
+      // 目の描画（左目: c=6..8, 右目: c=15..17, 基準行 r=6..8）
+      const eyeR = 6 + breatheOffset;
+      if (avatarMood === 'happy') {
+        // にっこりアーチ目 (^ ^)
+        grid[eyeR + 1][6] = 1; grid[eyeR][7] = 1; grid[eyeR + 1][8] = 1;
+        grid[eyeR + 1][15] = 1; grid[eyeR][16] = 1; grid[eyeR + 1][17] = 1;
+      } else if (isBlinking) {
+        // まばたき横線
+        for (let c = 6; c <= 8; c++) grid[eyeR + 1][c] = 1;
+        for (let c = 15; c <= 17; c++) grid[eyeR + 1][c] = 1;
+      } else {
+        // パッチリ目（聞き取り中は少し大きく）
+        const hEye = avatarMood === 'listening' ? 3 : 2;
+        for (let dr = 0; dr < hEye; dr++) {
+          for (let c = 6; c <= 8; c++) grid[eyeR + dr][c] = 1;
+          for (let c = 15; c <= 17; c++) grid[eyeR + dr][c] = 1;
+        }
+      }
+
+      // ほっぺ（発話中・笑顔時に点灯）
+      if (avatarMood === 'happy' || avatarMood === 'speaking') {
+        grid[10 + breatheOffset][5] = 3;
+        grid[10 + breatheOffset][18] = 3;
+      }
+
+      // 口の描画（基準行 r=12..15, c=8..15）
+      const mR = 12 + breatheOffset;
+      if (avatarMood === 'speaking') {
+        if (mouthPhase === 0) {
+          for (let c = 9; c <= 14; c++) grid[mR + 1][c] = 1;
+        } else if (mouthPhase === 1) {
+          for (let c = 9; c <= 14; c++) { grid[mR][c] = 1; grid[mR + 2][c] = 1; }
+          grid[mR + 1][8] = 1; grid[mR + 1][15] = 1;
+        } else {
+          for (let c = 10; c <= 13; c++) { grid[mR][c] = 1; grid[mR + 3][c] = 1; }
+          grid[mR + 1][9] = 1; grid[mR + 2][9] = 1;
+          grid[mR + 1][14] = 1; grid[mR + 2][14] = 1;
+        }
+      } else if (avatarMood === 'listening') {
+        // 「おっ」と聴いている丸い口
+        grid[mR][11] = 1; grid[mR][12] = 1;
+        grid[mR + 1][10] = 1; grid[mR + 1][13] = 1;
+        grid[mR + 2][11] = 1; grid[mR + 2][12] = 1;
+      } else {
+        // 優しい笑顔の口
+        grid[mR][8] = 1; grid[mR][15] = 1;
+        for (let c = 9; c <= 14; c++) grid[mR + 1][c] = 1;
+      }
+
+      // 全ドットを描画
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const cx = offsetX + c * cellSize + cellSize / 2;
+          const cy = offsetY + r * cellSize + cellSize / 2;
+          const state = grid[r][c];
+
+          ledCtx.beginPath();
+          ledCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+
+          if (state === 1) {
+            ledCtx.fillStyle = colorHex;
+            ledCtx.shadowColor = colorHex;
+            ledCtx.shadowBlur = 10;
+            ledCtx.fill();
+            ledCtx.shadowBlur = 0;
+          } else if (state === 2) {
+            ledCtx.fillStyle = colorHex + '55';
+            ledCtx.fill();
+          } else if (state === 3) {
+            ledCtx.fillStyle = '#fb7185';
+            ledCtx.fill();
+          } else {
+            // 消灯ドット（LEDパネルの質感）
+            ledCtx.fillStyle = '#111827';
+            ledCtx.fill();
+          }
+        }
+      }
+    }
+
+    function setAvatarMood(mood) {
+      avatarMood = mood;
+      const badgeDot = document.getElementById('avatarStatusDot');
+      const badgeText = document.getElementById('avatarStatusText');
+      const customImg = document.getElementById('customAvatarImg');
+      const pixelCanvas = document.getElementById('pixelAvatarCanvas');
+      const mouthOverlay = document.getElementById('customImgMouthOverlay');
+
+      // クラスリセット
+      customImg.classList.remove('anim-idle', 'anim-listening', 'anim-speaking');
+      pixelCanvas.classList.remove('anim-idle', 'anim-listening', 'anim-speaking');
+      mouthOverlay.classList.add('hidden');
+
+      if (mood === 'listening') {
+        badgeDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping';
+        badgeText.textContent = 'きいて いるよ…';
+        customImg.classList.add('anim-listening');
+        pixelCanvas.classList.add('anim-listening');
+      } else if (mood === 'speaking') {
+        badgeDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 animate-bounce';
+        badgeText.textContent = 'おはなし ちゅう';
+        customImg.classList.add('anim-speaking');
+        pixelCanvas.classList.add('anim-speaking');
+        if (getCurrentProfile().avatarType === 'image' && getCurrentProfile().imageAnimMode === 'mouth') {
+          mouthOverlay.classList.remove('hidden');
+        }
+      } else if (mood === 'happy') {
+        badgeDot.className = 'w-2.5 h-2.5 rounded-full bg-purple-400 animate-bounce';
+        badgeText.textContent = 'おんがく さいせいちゅう';
+        customImg.classList.add('anim-speaking');
+        pixelCanvas.classList.add('anim-speaking');
+      } else {
+        badgeDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+        badgeText.textContent = 'まっています';
+        customImg.classList.add('anim-idle');
+        pixelCanvas.classList.add('anim-idle');
+      }
+    }
+
+    // 自作画像のドット絵変換描画
+    function renderPixelatedImage(imgElement, canvasElement) {
+      const ctx = canvasElement.getContext('2d');
+      const targetW = 64;
+      const ratio = imgElement.naturalHeight / imgElement.naturalWidth || 1;
+      const targetH = Math.max(32, Math.round(targetW * ratio));
+      canvasElement.width = targetW;
+      canvasElement.height = targetH;
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, targetW, targetH);
+      ctx.drawImage(imgElement, 0, 0, targetW, targetH);
+    }
+
+    /*************************************************************************
+     * 6. キーワード連動動画・音楽（MP3）のハイブリッド再生 ＆ ユニバーサル全画面拡大
+     *************************************************************************/
+    function extractYouTubeInfo(rawUrl) {
+      const str = String(rawUrl || '').trim();
+      if (!str) return null;
+      let videoId = '';
+      let startSec = 0;
+      try {
+        const u = new URL(str);
+        const host = u.hostname.replace(/^www\./, '');
+        if (host === 'youtu.be') {
+          videoId = u.pathname.slice(1).split('/')[0];
+        } else if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtube-nocookie.com') {
+          if (u.pathname === '/watch') {
+            videoId = u.searchParams.get('v') || '';
+          } else if (u.pathname.startsWith('/shorts/')) {
+            videoId = u.pathname.split('/')[2] || '';
+          } else if (u.pathname.startsWith('/embed/')) {
+            videoId = u.pathname.split('/')[2] || '';
+          } else if (u.pathname.startsWith('/live/')) {
+            videoId = u.pathname.split('/')[2] || '';
+          }
+        }
+        const tParam = u.searchParams.get('t') || u.searchParams.get('start');
+        if (tParam) {
+          const num = parseInt(tParam.replace(/[^0-9]/g, ''), 10);
+          if (!isNaN(num) && num > 0) startSec = num;
+        }
+      } catch (e) {
+        const m = str.match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([a-zA-Z0-9_-]{11})/);
+        if (m) videoId = m[1];
+      }
+      if (!videoId || !/^[a-zA-Z0-9_-]{11}$/.test(videoId)) return null;
+      return { videoId, startSec };
+    }
+
+    function buildYouTubeEmbedUrl(videoId, opts = {}) {
+      const params = new URLSearchParams({
+        autoplay: opts.autoplay ? '1' : '0',
+        mute: opts.mute ? '1' : '0',
+        rel: '0',
+        playsinline: '1',
+        enablejsapi: '1'
+      });
+      if (opts.start && opts.start > 0) {
+        params.set('start', String(opts.start));
+      }
+      return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?${params.toString()}`;
+    }
+
+    // YouTube埋め込みプレイヤーの再生終了イベントを検知して元のアバターへ自動復帰
+    window.addEventListener('message', (event) => {
+      if (!event.origin || !event.origin.includes('youtube.com')) return;
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data && data.event === 'onStateChange' && data.info === 0) {
+          if (activeTriggerVideoItem && activeTriggerVideoItem.type === 'youtube') {
+            stopTriggerVideo();
+          }
+        }
+      } catch (e) {}
+    });
+
+    async function playKeywordTriggerVideo(mediaItem) {
+      if (!mediaItem || (!mediaItem.blob && mediaItem.type !== 'youtube')) return;
+
+      // 音楽が再生中なら停止して音声の重なりを防ぐ
+      stopTriggerAudio();
+
+      const container = document.getElementById('triggerVideoContainer');
+      const video = document.getElementById('triggerVideoPlayer');
+      const ytPlayer = document.getElementById('triggerYoutubePlayer');
+      const unmuteBtn = document.getElementById('unmuteFallbackBtn');
+
+      if (activeTriggerVideoUrl) {
+        URL.revokeObjectURL(activeTriggerVideoUrl);
+        activeTriggerVideoUrl = null;
+      }
+      activeTriggerVideoItem = mediaItem;
+      unmuteBtn.classList.add('hidden');
+      container.classList.remove('hidden');
+
+      // YouTubeリンク動画の再生
+      if (mediaItem.type === 'youtube') {
+        video.pause();
+        video.removeAttribute('src');
+        video.classList.add('hidden');
+        ytPlayer.classList.remove('hidden');
+
+        // iPad Safari等でも確実に自動再生できるようミュート開始し、大きな「🔊 おとを だす」ボタンを重ねる
+        ytPlayer.src = buildYouTubeEmbedUrl(mediaItem.youtubeId, {
+          autoplay: true,
+          mute: true,
+          start: mediaItem.startSec
+        });
+        unmuteBtn.classList.remove('hidden');
+        return;
+      }
+
+      // ローカルMP4動画の再生
+      ytPlayer.src = '';
+      ytPlayer.classList.add('hidden');
+      video.classList.remove('hidden');
+      activeTriggerVideoUrl = URL.createObjectURL(mediaItem.blob);
+
+      video.src = activeTriggerVideoUrl;
+      video.muted = false;
+      video.currentTime = 0;
+
+      // 再生終了時にシームレスに元のLED顔/画像へ復帰
+      video.onended = () => {
+        stopTriggerVideo();
+      };
+
+      try {
+        await video.play();
+      } catch (err) {
+        // iPad Safari等で音声付き自動再生がブロックされた場合：消音フォールバック＋「🔊 おとを だす」ボタン表示
+        video.muted = true;
+        try {
+          await video.play();
+          unmuteBtn.classList.remove('hidden');
+        } catch (err2) {
+          unmuteBtn.classList.remove('hidden');
+        }
+      }
+    }
+
+    function unmuteAndRestartTriggerVideo() {
+      const video = document.getElementById('triggerVideoPlayer');
+      const ytPlayer = document.getElementById('triggerYoutubePlayer');
+      const unmuteBtn = document.getElementById('unmuteFallbackBtn');
+
+      if (activeTriggerVideoItem && activeTriggerVideoItem.type === 'youtube') {
+        ytPlayer.src = buildYouTubeEmbedUrl(activeTriggerVideoItem.youtubeId, {
+          autoplay: true,
+          mute: false,
+          start: activeTriggerVideoItem.startSec
+        });
+        unmuteBtn.classList.add('hidden');
+        return;
+      }
+
+      video.muted = false;
+      video.currentTime = 0;
+      video.play().catch(() => {});
+      unmuteBtn.classList.add('hidden');
+    }
+
+    function stopTriggerVideo() {
+      const container = document.getElementById('triggerVideoContainer');
+      const video = document.getElementById('triggerVideoPlayer');
+      const ytPlayer = document.getElementById('triggerYoutubePlayer');
+      const unmuteBtn = document.getElementById('unmuteFallbackBtn');
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      ytPlayer.src = '';
+      ytPlayer.classList.add('hidden');
+      unmuteBtn.classList.add('hidden');
+      container.classList.add('hidden');
+      activeTriggerVideoItem = null;
+      if (activeTriggerVideoUrl) {
+        URL.revokeObjectURL(activeTriggerVideoUrl);
+        activeTriggerVideoUrl = null;
+      }
+    }
+
+    function expandActiveTriggerVideoToFullscreen() {
+      const item = activeTriggerVideoItem;
+      stopTriggerVideo();
+      if (item) {
+        openUniversalMediaModal(item);
+      }
+    }
+
+    // キーワード連動音楽（MP3）の再生・停止
+    async function playKeywordTriggerAudio(mediaItem) {
+      if (!mediaItem || !mediaItem.blob) return;
+
+      const audioEl = document.getElementById('triggerAudioPlayer');
+      const banner = document.getElementById('audioPlayingBanner');
+      const titleEl = document.getElementById('audioPlayingTitle');
+      const unmuteBtn = document.getElementById('audioUnmuteBtn');
+
+      if (activeTriggerAudioUrl) {
+        URL.revokeObjectURL(activeTriggerAudioUrl);
+      }
+      activeTriggerAudioUrl = URL.createObjectURL(mediaItem.blob);
+
+      titleEl.textContent = `🎵 ${mediaItem.name.replace(/\.[^.]+$/, '')}`;
+      banner.classList.remove('hidden');
+      unmuteBtn.classList.add('hidden');
+      setAvatarMood('happy');
+
+      audioEl.src = activeTriggerAudioUrl;
+      audioEl.currentTime = 0;
+      audioEl.onended = () => {
+        stopTriggerAudio();
+      };
+
+      try {
+        await audioEl.play();
+      } catch (err) {
+        // 自動再生ブロック時は「🔊 ならす」ボタンを表示
+        unmuteBtn.classList.remove('hidden');
+      }
+    }
+
+    function playCurrentAudioFromStart() {
+      const audioEl = document.getElementById('triggerAudioPlayer');
+      const unmuteBtn = document.getElementById('audioUnmuteBtn');
+      audioEl.currentTime = 0;
+      audioEl.play().then(() => {
+        unmuteBtn.classList.add('hidden');
+        setAvatarMood('happy');
+      }).catch(() => {});
+    }
+
+    function stopTriggerAudio() {
+      const audioEl = document.getElementById('triggerAudioPlayer');
+      const banner = document.getElementById('audioPlayingBanner');
+      const unmuteBtn = document.getElementById('audioUnmuteBtn');
+      if (audioEl) {
+        audioEl.pause();
+        audioEl.removeAttribute('src');
+        audioEl.load();
+      }
+      if (banner) banner.classList.add('hidden');
+      if (unmuteBtn) unmuteBtn.classList.add('hidden');
+      if (activeTriggerAudioUrl) {
+        URL.revokeObjectURL(activeTriggerAudioUrl);
+        activeTriggerAudioUrl = null;
+      }
+      if (avatarMood === 'happy') {
+        setAvatarMood('idle');
+      }
+    }
+
+    // ユニバーサル全画面拡大モーダル（画像・動画・YouTube・PDF資料・音楽すべて対応）
+    function openUniversalMediaModal(mediaItem) {
+      if (!mediaItem || (!mediaItem.blob && mediaItem.type !== 'youtube')) return;
+
+      // 背景の再生を停止して重なりを防止
+      stopTriggerVideo();
+      stopTriggerAudio();
+      window.speechSynthesis?.cancel();
+
+      const modal = document.getElementById('universalMediaModal');
+      const titleEl = document.getElementById('universalModalTitle');
+      const extBtn = document.getElementById('universalModalExternalBtn');
+      const imgEl = document.getElementById('universalModalImg');
+      const vidEl = document.getElementById('universalModalVideo');
+      const ytEl = document.getElementById('universalModalYoutube');
+      const pdfEl = document.getElementById('universalModalPdf');
+      const audBox = document.getElementById('universalModalAudioBox');
+      const audName = document.getElementById('universalModalAudioName');
+      const audEl = document.getElementById('universalModalAudio');
+
+      // すべて一旦リセット
+      imgEl.classList.add('hidden');
+      vidEl.classList.add('hidden');
+      ytEl.classList.add('hidden');
+      pdfEl.classList.add('hidden');
+      audBox.classList.add('hidden');
+      extBtn.classList.add('hidden');
+
+      if (activeUniversalModalBlobUrl) {
+        URL.revokeObjectURL(activeUniversalModalBlobUrl);
+        activeUniversalModalBlobUrl = null;
+      }
+
+      const cleanTitle = mediaItem.name.replace(/\.[^.]+$/, '');
+      titleEl.textContent = cleanTitle;
+
+      if (mediaItem.type === 'youtube') {
+        ytEl.src = buildYouTubeEmbedUrl(mediaItem.youtubeId, {
+          autoplay: true,
+          mute: false,
+          start: mediaItem.startSec
+        });
+        ytEl.classList.remove('hidden');
+        if (mediaItem.youtubeUrl) {
+          extBtn.href = mediaItem.youtubeUrl;
+          extBtn.classList.remove('hidden');
+        }
+        modal.classList.remove('hidden');
+        return;
+      }
+
+      activeUniversalModalBlobUrl = URL.createObjectURL(mediaItem.blob);
+
+      if (mediaItem.type === 'image') {
+        imgEl.src = activeUniversalModalBlobUrl;
+        imgEl.classList.remove('hidden');
+      } else if (mediaItem.type === 'video') {
+        vidEl.src = activeUniversalModalBlobUrl;
+        vidEl.classList.remove('hidden');
+        vidEl.play().catch(() => {});
+      } else if (mediaItem.type === 'pdf') {
+        pdfEl.src = activeUniversalModalBlobUrl;
+        pdfEl.classList.remove('hidden');
+        extBtn.href = activeUniversalModalBlobUrl;
+        extBtn.classList.remove('hidden');
+      } else if (mediaItem.type === 'audio') {
+        audName.textContent = cleanTitle;
+        audEl.src = activeUniversalModalBlobUrl;
+        audBox.classList.remove('hidden');
+        audEl.play().catch(() => {});
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeUniversalMediaModal() {
+      const modal = document.getElementById('universalMediaModal');
+      const imgEl = document.getElementById('universalModalImg');
+      const vidEl = document.getElementById('universalModalVideo');
+      const ytEl = document.getElementById('universalModalYoutube');
+      const pdfEl = document.getElementById('universalModalPdf');
+      const audEl = document.getElementById('universalModalAudio');
+
+      vidEl.pause();
+      vidEl.removeAttribute('src');
+      vidEl.load();
+
+      ytEl.src = '';
+
+      audEl.pause();
+      audEl.removeAttribute('src');
+      audEl.load();
+
+      imgEl.src = '';
+      pdfEl.src = '';
+
+      if (activeUniversalModalBlobUrl) {
+        URL.revokeObjectURL(activeUniversalModalBlobUrl);
+        activeUniversalModalBlobUrl = null;
+      }
+
+      modal.classList.add('hidden');
+    }
+
+    /*************************************************************************
+     * 7. 音声入力（Web Speech API：手動「おわり」ボタン確定方式 / 自動確定方式）
+     *************************************************************************/
+    function setupSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return;
+
+      recognition = new SpeechRecognition();
+      recognition.lang = 'ja-JP';
+      recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        isRecording = true;
+        setAvatarMood('listening');
+        updateMicButtonUI();
+      };
+
+      recognition.onresult = (event) => {
+        let interim = '';
+        let finalStr = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalStr += transcript;
+          } else {
+            interim += transcript;
+          }
+        }
+        const profile = getCurrentProfile();
+        const inputEl = document.getElementById('manualTextInput');
+
+        if (profile.speechMode === 'manual') {
+          if (finalStr) manualTranscriptBuffer += finalStr;
+          inputEl.value = (manualTranscriptBuffer + interim).trim();
+        } else {
+          inputEl.value = (finalStr || interim).trim();
+          if (finalStr) {
+            stopMicrophone();
+            processUserMessage(finalStr.trim());
+          }
+        }
+      };
+
+      recognition.onerror = (event) => {
+        if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          showToast('マイクの にゅうりょく が できませんでした（もじ にゅうりょく も つかえます）');
+        }
+        if (getCurrentProfile().speechMode === 'auto') {
+          stopMicrophone();
+        }
+      };
+
+      recognition.onend = () => {
+        const profile = getCurrentProfile();
+        // 手動確定方式でまだ「おわり」ボタンが押されていない場合は継続録音
+        if (isRecording && profile.speechMode === 'manual') {
+          try { recognition.start(); } catch (e) {}
+        } else {
+          isRecording = false;
+          setAvatarMood('idle');
+          updateMicButtonUI();
+        }
+      };
+    }
+
+    function toggleMicrophone() {
+      if (!recognition) {
+        showToast('このブラウザは おんせいにゅうりょく に たいおう していません。みぎの わくに もじを いれてね！');
+        return;
+      }
+      if (isRecording) {
+        stopMicrophone();
+      } else {
+        // 読み上げ中・音楽再生中なら停止
+        window.speechSynthesis?.cancel();
+        stopTriggerAudio();
+        manualTranscriptBuffer = '';
+        document.getElementById('manualTextInput').value = '';
+        const profile = getCurrentProfile();
+        recognition.continuous = (profile.speechMode === 'manual');
+        try {
+          recognition.start();
+        } catch (e) {}
+      }
+    }
+
+    function stopMicrophone() {
+      isRecording = false;
+      if (recognition) {
+        try { recognition.stop(); } catch (e) {}
+      }
+      setAvatarMood('idle');
+      updateMicButtonUI();
+    }
+
+    function confirmManualSpeech() {
+      const text = document.getElementById('manualTextInput').value.trim();
+      stopMicrophone();
+      manualTranscriptBuffer = '';
+      if (text) {
+        document.getElementById('manualTextInput').value = '';
+        processUserMessage(text);
+      } else {
+        showToast('こえ が ききとれませんでした。もういちど おはなし してね！');
+      }
+    }
+
+    function updateMicButtonUI() {
+      const micBtn = document.getElementById('micActionBtn');
+      const micText = document.getElementById('micBtnText');
+      const finishBtn = document.getElementById('finishSpeechBtn');
+      const profile = getCurrentProfile();
+
+      if (isRecording) {
+        micBtn.classList.add('mic-recording', 'bg-amber-600');
+        micBtn.classList.remove('bg-rose-600');
+        micText.textContent = profile.speechMode === 'manual' ? 'きいています…' : 'ストップ';
+        if (profile.speechMode === 'manual') {
+          finishBtn.classList.remove('hidden');
+        }
+      } else {
+        micBtn.classList.remove('mic-recording', 'bg-amber-600');
+        micBtn.classList.add('bg-rose-600');
+        micText.textContent = 'おしゃべり する';
+        finishBtn.classList.add('hidden');
+      }
+    }
+
+    function submitTextInput() {
+      const inputEl = document.getElementById('manualTextInput');
+      const text = inputEl.value.trim();
+      if (!text) return;
+      if (isRecording) stopMicrophone();
+      inputEl.value = '';
+      processUserMessage(text);
+    }
+
+    function handleQuickPrompt(text) {
+      processUserMessage(text);
+    }
+
+    function handleChoiceClick(queryText) {
+      processUserMessage(queryText);
+    }
+
+    /*************************************************************************
+     * 8. 音声読み上げ（TTS）＆ ルビ（<rt>）二重読み完全防止処理
+     *************************************************************************/
+    function toggleAutoTts() {
+      autoTtsEnabled = !autoTtsEnabled;
+      const btn = document.getElementById('toggleAutoTtsBtn');
+      const icon = document.getElementById('autoTtsIcon');
+      const label = document.getElementById('autoTtsLabel');
+      if (autoTtsEnabled) {
+        btn.classList.remove('bg-slate-700', 'text-slate-300');
+        btn.classList.add('bg-emerald-600', 'text-white');
+        icon.textContent = '🔊';
+        label.textContent = 'じどうよみあげ：ON';
+      } else {
+        btn.classList.remove('bg-emerald-600', 'text-white');
+        btn.classList.add('bg-slate-700', 'text-slate-300');
+        icon.textContent = '🔇';
+        label.textContent = 'じどうよみあげ：OFF';
+        window.speechSynthesis?.cancel();
+        setAvatarMood('idle');
+      }
+    }
+
+    function updateTtsRate(val) {
+      ttsRate = parseFloat(val);
+      document.getElementById('ttsRateVal').textContent = ttsRate.toFixed(1);
+    }
+
+    // HTML内の <rt> タグを除去してからプレーンテキスト化し、漢字＋ふりがなの二重読みを防止
+    function extractCleanSpeechText(htmlString) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = htmlString.replace(/<br\s*\/?>/gi, '。');
+      // すべての <rt> と <rp> を削除（親の漢字だけを残すことで日本語TTSが自然に読む）
+      tempDiv.querySelectorAll('rt, rp').forEach(el => el.remove());
+      return (tempDiv.textContent || tempDiv.innerText || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function speakCurrentResponse() {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const plainText = extractCleanSpeechText(currentResponseRawHtml);
+      if (!plainText) return;
+
+      const utter = new SpeechSynthesisUtterance(plainText);
+      utter.lang = 'ja-JP';
+      utter.rate = ttsRate;
+      utter.pitch = 1.05;
+
+      utter.onstart = () => setAvatarMood('speaking');
+      utter.onend = () => {
+        if (avatarMood === 'speaking') setAvatarMood('idle');
+      };
+      utter.onerror = () => {
+        if (avatarMood === 'speaking') setAvatarMood('idle');
+      };
+
+      window.speechSynthesis.speak(utter);
+    }
+
+    /*************************************************************************
+     * 9. 対話・キーワード連動（動画/画像/PDF/MP3）・自己紹介分岐・Web検索統合エンジン
+     *************************************************************************/
+    async function processUserMessage(userText) {
+      hasStartedConversation = true;
+
+      // ユーザー発話バッジ表示
+      const userBubble = document.getElementById('userSpeechBubble');
+      document.getElementById('userSpeechText').textContent = userText;
+      userBubble.classList.remove('hidden');
+
+      const allMedia = await idbGetAllMedia();
+      const normalizedInput = userText.toLowerCase();
+
+      // 1. キーワード一致判定（動画・YouTube・絵カード・音楽MP3・PDF資料）
+      const matchedVideos = [];
+      const matchedImages = [];
+      const matchedAudios = [];
+      const matchedPdfs = [];
+      const allPdfDocs = [];
+
+      for (const item of allMedia) {
+        if (!['video', 'youtube', 'image', 'audio', 'pdf'].includes(item.type)) continue;
+        if (item.type === 'pdf') allPdfDocs.push(item);
+
+        const keywords = (item.keywords || '').split(/[,、，\s]+/).map(k => k.trim().toLowerCase()).filter(Boolean);
+        const isHit = keywords.some(kw => normalizedInput.includes(kw));
+        if (isHit) {
+          if (item.type === 'video' || item.type === 'youtube') matchedVideos.push(item);
+          if (item.type === 'image') matchedImages.push(item);
+          if (item.type === 'audio') matchedAudios.push(item);
+          if (item.type === 'pdf') matchedPdfs.push(item);
+        }
+      }
+
+      // 2. 「自己紹介」2パターン分岐判定
+      const isSelfIntroHowTo = /(じこしょうかい|自己紹介).*(やりかた|やり方|しかた|仕方|おしえて|教えて|れい|例|どうやる)/.test(userText);
+      const isAiSelfIntro = !isSelfIntroHowTo && /(じこしょうかい|自己紹介|あなたはだれ|あなたは誰|おなまえは|お名前は|だれですか|誰ですか)/.test(userText);
+
+      // 動画・音楽のハイブリッド自動再生（動画/YouTube優先、動画なしの場合は音楽MP3を自動再生）
+      if (matchedVideos.length > 0) {
+        playKeywordTriggerVideo(matchedVideos[0]);
+      } else if (isAiSelfIntro) {
+        const introVid = allMedia.find(m => (m.type === 'video' || m.type === 'youtube') && (m.keywords || '').includes('じこしょうかい'));
+        if (introVid) {
+          matchedVideos.push(introVid);
+          playKeywordTriggerVideo(introVid);
+        } else if (matchedAudios.length > 0) {
+          playKeywordTriggerAudio(matchedAudios[0]);
+        }
+      } else if (matchedAudios.length > 0) {
+        playKeywordTriggerAudio(matchedAudios[0]);
+      }
+
+      // 3. 調べ学習（「おしえて」「しらべて」「もっとくわしく」「なぜ」等）判定
+      const isFollowUpQuery = /(もっと|くわしく|詳しく|なぜ|どうして|それで|それから|どういうこと|つづき|続き)/.test(userText);
+      const isSearchQuery = /(おしえて|教えて|しらべて|調べて|なに|何|なぜ|どうして|クイズ|てんき|天気|えいよう|栄養|しりょう|資料)/.test(userText)
+        || (isFollowUpQuery && Boolean(lastTurnContext));
+
+      // AIに参照させるPDFリスト（キーワード一致PDFがあれば優先、なければ登録全PDFを最大2件まで参照）
+      const pdfDocsForAi = matchedPdfs.length > 0 ? matchedPdfs : allPdfDocs;
+
+      // ローディング表示
+      document.getElementById('aiLoadingOverlay').classList.remove('hidden');
+
+      try {
+        let aiResult = null;
+        const requestFlags = {
+          isSelfIntroHowTo,
+          isAiSelfIntro,
+          isSearchQuery,
+          pdfDocs: pdfDocsForAi,
+          prevTurn: lastTurnContext
+        };
+
+        if (apiConfig.mode === 'direct' && apiConfig.geminiKey) {
+          aiResult = await callGeminiDirectApi(userText, requestFlags);
+        } else if (apiConfig.mode === 'gas' && apiConfig.gasUrl) {
+          aiResult = await callGasRelayApi(userText, requestFlags);
+        } else if (apiConfig.mode === 'gas' && !apiConfig.gasUrl) {
+          throw new Error('GAS Webアプリ URL が未設定です。教員設定の「4. API接続・セキュリティ設定」からURLを保存してください。');
+        } else {
+          // デモ動作確認モード（APIキー不要で全仕様を完全体験）
+          await new Promise(r => setTimeout(r, 500));
+          aiResult = generateDemoResponse(userText, {
+            ...requestFlags,
+            matchedVideos,
+            matchedImages,
+            matchedAudios,
+            matchedPdfs
+          });
+        }
+
+        // 応答テキスト反映
+        currentResponseRawHtml = aiResult.htmlText;
+        document.getElementById('aiResponseContent').innerHTML = currentResponseRawHtml;
+        document.getElementById('aiResponseBoard').scrollTop = 0;
+
+        // 次回の対話・調べ学習で直前1回分のみ参照できるよう保存
+        lastTurnContext = {
+          user: userText,
+          ai: extractCleanSpeechText(currentResponseRawHtml)
+        };
+
+        // AI応答本文内のキーワードでも追加メディア一致チェック
+        const plainResp = extractCleanSpeechText(currentResponseRawHtml).toLowerCase();
+        for (const item of allMedia) {
+          if (!['video', 'youtube', 'image', 'audio', 'pdf'].includes(item.type)) continue;
+          const keywords = (item.keywords || '').split(/[,、，\s]+/).map(k => k.trim().toLowerCase()).filter(Boolean);
+          if (keywords.some(kw => plainResp.includes(kw))) {
+            if ((item.type === 'video' || item.type === 'youtube') && !matchedVideos.some(v => v.id === item.id)) matchedVideos.push(item);
+            if (item.type === 'image' && !matchedImages.some(i => i.id === item.id)) matchedImages.push(item);
+            if (item.type === 'audio' && !matchedAudios.some(a => a.id === item.id)) matchedAudios.push(item);
+            if (item.type === 'pdf' && !matchedPdfs.some(p => p.id === item.id)) matchedPdfs.push(item);
+          }
+        }
+
+        // 質問時に登録PDFを参照した場合も、そのPDF資料をすぐ全画面拡大できるようボタン候補に追加
+        if (isSearchQuery && matchedPdfs.length === 0 && allPdfDocs.length > 0) {
+          matchedPdfs.push(allPdfDocs[0]);
+        }
+
+        // 右側パネル下部の連動メディアボタン更新（動画・画像・PDF・音楽の再生＆全画面拡大）
+        renderMatchedMediaButtons(matchedVideos, matchedImages, matchedPdfs, matchedAudios);
+
+        // 次の検索4択ボタン更新
+        if (aiResult.choices && aiResult.choices.length === 4) {
+          renderChoiceButtons(aiResult.choices);
+        }
+
+        // 自動読み上げONなら発話（ただしMP3音楽を自動再生し始めた直後は音楽を優先して邪魔しない）
+        if (autoTtsEnabled && matchedAudios.length === 0) {
+          speakCurrentResponse();
+        }
+      } catch (err) {
+        console.error(err);
+        const teacherHint = escapeHtml(err?.message || 'ネットワークまたは設定を確認してください');
+        currentResponseRawHtml = `ごめんね、つうしん で エラー が おきました。<br>もういちど ためすか、せんせい に みて もらってね！<div class="mt-3 pt-2 border-t border-slate-800 text-xs sm:text-sm text-slate-400 font-normal">【せんせい向け確認メモ】${teacherHint}</div>`;
+        document.getElementById('aiResponseContent').innerHTML = currentResponseRawHtml;
+      } finally {
+        document.getElementById('aiLoadingOverlay').classList.add('hidden');
+      }
+    }
+
+    // 応答パネル内の連動メディアボタン描画（動画・画像・PDF・音楽すべて対応＆全画面拡大ボタン付き）
+    function renderMatchedMediaButtons(videos, images, pdfs, audios) {
+      const bar = document.getElementById('matchedMediaBar');
+      bar.innerHTML = '';
+
+      if (videos.length === 0 && images.length === 0 && pdfs.length === 0 && audios.length === 0) {
+        bar.classList.add('hidden');
+        return;
+      }
+      bar.classList.remove('hidden');
+
+      // 1. 動画（MP4）：左枠再生ボタン ＋ 任意全画面拡大ボタン
+      videos.forEach(vid => {
+        const cleanName = escapeHtml(vid.name.replace(/\.[^.]+$/, ''));
+
+        const playBtn = document.createElement('button');
+        playBtn.type = 'button';
+        playBtn.className = 'px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg flex items-center gap-1.5 transition active:scale-95';
+        playBtn.innerHTML = `<span class="text-lg">▶️</span><span>どうがを みる（${cleanName}）</span>`;
+        playBtn.onclick = () => playKeywordTriggerVideo(vid);
+        bar.appendChild(playBtn);
+
+        const fullBtn = document.createElement('button');
+        fullBtn.type = 'button';
+        fullBtn.className = 'px-3.5 py-2 rounded-2xl bg-amber-300 hover:bg-amber-200 text-slate-950 font-black text-xs sm:text-sm shadow-lg border-2 border-white flex items-center gap-1 transition active:scale-95';
+        fullBtn.innerHTML = `<span class="text-base">⛶</span><span>おおきく みる</span>`;
+        fullBtn.onclick = () => openUniversalMediaModal(vid);
+        bar.appendChild(fullBtn);
+      });
+
+      // 2. 画像（絵カード）：サムネイル付き全画面拡大ボタン
+      images.forEach(imgItem => {
+        const cleanName = escapeHtml(imgItem.name.replace(/\.[^.]+$/, ''));
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const thumbUrl = URL.createObjectURL(imgItem.blob);
+        btn.className = 'px-3.5 py-2 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg flex items-center gap-2 transition active:scale-95';
+        btn.innerHTML = `
+          <img src="${thumbUrl}" class="w-8 h-8 object-cover rounded-lg border-2 border-white bg-black" />
+          <span>🔍 おおきく みる（${cleanName}）</span>
+        `;
+        btn.onclick = () => openUniversalMediaModal(imgItem);
+        bar.appendChild(btn);
+      });
+
+      // 3. PDF資料：全画面拡大表示ボタン
+      pdfs.forEach(pdfItem => {
+        const cleanName = escapeHtml(pdfItem.name.replace(/\.[^.]+$/, ''));
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'px-3.5 py-2 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg flex items-center gap-1.5 transition active:scale-95';
+        btn.innerHTML = `<span class="text-lg">📄</span><span>しりょうを おおきく みる（${cleanName}）</span>`;
+        btn.onclick = () => openUniversalMediaModal(pdfItem);
+        bar.appendChild(btn);
+      });
+
+      // 4. 音楽・音声（MP3）：再生ボタン ＋ 拡大プレイヤーボタン
+      audios.forEach(audItem => {
+        const cleanName = escapeHtml(audItem.name.replace(/\.[^.]+$/, ''));
+
+        const playBtn = document.createElement('button');
+        playBtn.type = 'button';
+        playBtn.className = 'px-3.5 py-2 rounded-2xl bg-purple-500 hover:bg-purple-400 text-white font-black text-xs sm:text-sm shadow-lg flex items-center gap-1.5 transition active:scale-95';
+        playBtn.innerHTML = `<span class="text-lg">🎵</span><span>おんがくを ならす（${cleanName}）</span>`;
+        playBtn.onclick = () => playKeywordTriggerAudio(audItem);
+        bar.appendChild(playBtn);
+
+        const openBtn = document.createElement('button');
+        openBtn.type = 'button';
+        openBtn.className = 'px-3 py-2 rounded-2xl bg-purple-800 hover:bg-purple-700 text-purple-100 border border-purple-400 font-bold text-xs sm:text-sm shadow flex items-center gap-1 transition active:scale-95';
+        openBtn.innerHTML = `<span>⛶</span><span>がめん ひらく</span>`;
+        openBtn.onclick = () => openUniversalMediaModal(audItem);
+        bar.appendChild(openBtn);
+      });
+    }
+
+    // 次の検索4択ボタン描画
+    function renderChoiceButtons(choices) {
+      const grid = document.getElementById('choiceButtonsGrid');
+      grid.innerHTML = '';
+      choices.forEach(ch => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'p-2 rounded-xl bg-slate-800 hover:bg-indigo-600 border border-slate-600 text-left flex items-center gap-2 transition active:scale-95';
+        btn.innerHTML = `
+          <span class="text-xl sm:text-2xl shrink-0">${escapeHtml(ch.emoji || '💡')}</span>
+          <span class="text-xs sm:text-sm font-bold text-white leading-tight line-clamp-2">${ch.labelHtml || escapeHtml(ch.label)}</span>
+        `;
+        btn.onclick = () => handleChoiceClick(ch.query || ch.label);
+        grid.appendChild(btn);
+      });
+    }
+
+    function getDefaultChoices() {
+      return [
+        { emoji: '☀️', label: 'きょうの てんき', query: 'きょうの てんき を おしえて' },
+        { emoji: '🍱', label: 'たべものの えいよう', query: 'きゅうしょく の えいよう を しらべて' },
+        { emoji: '🧼', label: 'てあらい の しかた', query: 'てあらい の しかた を おしえて' },
+        { emoji: '🦁', label: 'どうぶつ クイズ', query: 'どうぶつ の クイズ を おしえて' }
+      ];
+    }
+
+    /*************************************************************************
+     * 10. Gemini API 直接通信 ＆ GAS中継通信 ＆ システムプロンプト構築
+     *************************************************************************/
+    function buildSystemInstruction(flags) {
+      const profile = getCurrentProfile();
+      const aiName = getEffectiveAiName(profile);
+
+      const kanjiRuleMap = {
+        hiragana: '【最重要文字ルール】漢字・カタカナ（固有名詞や外来語を除く）は一切使わず、「ひらがなのみ」で、文節ごとに半角スペースを入れた分かち書きで書いてください。',
+        grade1: '【最重要文字ルール】小学1年生までに習う漢字のみを使用し、それ以外はひらがなにしてください。また、使用する**すべての漢字**に必ずHTMLの <ruby>漢字<rt>かんじ</rt></ruby> タグでふりがなを付けてください。',
+        grade2: '【最重要文字ルール】小学2年生までに習う漢字のみを使用し、**すべての漢字**に必ずHTMLの <ruby>漢字<rt>かんじ</rt></ruby> タグでふりがなを付けてください。',
+        grade3: '【最重要文字ルール】小学3年生までに習う漢字のみを使用し、**すべての漢字**に必ずHTMLの <ruby>漢字<rt>かんじ</rt></ruby> タグでふりがなを付けてください。',
+        grade4: '【最重要文字ルール】小学4年生までに習う漢字のみを使用し、**すべての漢字**に必ずHTMLの <ruby>漢字<rt>かんじ</rt></ruby> タグでふりがなを付けてください。',
+        grade5: '【最重要文字ルール】小学5年生までに習う漢字のみを使用し、**すべての漢字**に必ずHTMLの <ruby>漢字<rt>かんじ</rt></ruby> タグでふりがなを付けてください。',
+        grade6: '【最重要文字ルール】小学6年生までに習う漢字のみを使用し、**すべての漢字**に必ずHTMLの <ruby>漢字<rt>かんじ</rt></ruby> タグでふりがなを付けてください。',
+        jh1: '【最重要文字ルール】中学1年生までに習う漢字のみを使用し、**すべての漢字**に必ずHTMLの <ruby>漢字<rt>かんじ</rt></ruby> タグでふりがなを付けてください。',
+        jh2: '【最重要文字ルール】中学2年生までに習う漢字のみを使用し、**すべての漢字**に必ずHTMLの <ruby>漢字<rt>かんじ</rt></ruby> タグでふりがなを付けてください。',
+        jh3: '【最重要文字ルール】中学3年生までに習う漢字のみを使用し、**すべての漢字**に必ずHTMLの <ruby>漢字<rt>かんじ</rt></ruby> タグでふりがなを付けてください。'
+      };
+
+      let specialDirective = '';
+      if (flags.isSelfIntroHowTo) {
+        specialDirective = `
+【自己紹介のやり方指導モード】
+児童が「自分の自己紹介のやり方」を知りたがっています。
+① げんきに あいさつ（「こんにちは！」）
+② じぶんの なまえ（「ぼくの／わたしの なまえは 〇〇 です」）
+③ すきな こと・たべもの（「すきな ことは 〇〇 です」）
+④ さいごの あいさつ（「よろしく おねがいします！」）
+の4ステップで分かりやすく教え、短い例文も提示してください。`;
+      } else if (flags.isAiSelfIntro) {
+        specialDirective = `
+【AI自身の自己紹介モード（文部科学省 生成AI利活用ガイドライン準拠）】
+あなたは「${aiName}」として自己紹介し、知的障害のある児童生徒向けに以下の4つの大切な約束を必ず分かりやすく伝えてください：
+1. AIは にんげん ではなく コンピュータ（きかい） であること
+2. ときどき まちがえる ことがあること
+3. たいせつな ことは かならず せんせい や おとな と かくにん すること
+4. なまえ や じゅうしょ など たいせつな ひみつ は おしえない こと`;
+      } else if (flags.isSearchQuery) {
+        specialDirective = `
+【調べ学習・4つの要点モード】
+質問に対して、分かりやすい「4つの要点（①〜④）」に整理して短く箇条書き（<br>区切り）で答えてください。`;
+      }
+
+      let prevTurnDirective = '';
+      if (flags.prevTurn && flags.prevTurn.user && flags.prevTurn.ai) {
+        prevTurnDirective = `
+【直前1回分のやりとり（1ターン参照）】
+・児童の前の質問：「${flags.prevTurn.user}」
+・あなたの前の回答：「${flags.prevTurn.ai}」
+※今回の質問が「もっとくわしく」「なぜ？」「それはどういうこと？」など前の回答の深掘りである場合は、上記の直前1回分の回答内容を踏まえて分かりやすく答えてください。全く新しい話題に変わった場合は、前の話題に引きずられず新しい質問に答えてください。`;
+      }
+
+      return `あなたは日本の特別支援学校の授業で活躍する「${aiName}」です。
+知的障害のある児童生徒が画面を見て一目で理解できるよう、優しく丁寧で短い文で話します。
+${profile.systemPrompt ? `【授業のめあて・配慮】${profile.systemPrompt}` : ''}
+${kanjiRuleMap[profile.kanjiLevel] || kanjiRuleMap.hiragana}
+${specialDirective}
+${prevTurnDirective}
+
+【出力フォーマット厳守】
+以下のJSON形式のみを出力してください（マークダウンのコードブロック記号は不要）：
+{
+  "htmlText": "画面に表示する本文（改行は<br>を使用。漢字を使う場合は必ず<ruby>漢字<rt>かんじ</rt></ruby>タグを使用）",
+  "choices": [
+    { "emoji": "絵文字1つ", "label": "ボタン表示用タイトル（10文字以内）", "query": "タップ時に送信する質問文" },
+    { "emoji": "絵文字1つ", "label": "ボタン表示用タイトル", "query": "タップ時に送信する質問文" },
+    { "emoji": "絵文字1つ", "label": "ボタン表示用タイトル", "query": "タップ時に送信する質問文" },
+    { "emoji": "絵文字1つ", "label": "ボタン表示用タイトル", "query": "タップ時に送信する質問文" }
+  ]
+}`;
+    }
+
+    async function callGeminiDirectApi(userText, flags) {
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${encodeURIComponent(apiConfig.geminiKey)}`;
+      const parts = [{ text: userText }];
+
+      // 登録PDF資料がある場合はインラインデータとして添付して参照させる
+      if (flags.pdfDocs && flags.pdfDocs.length > 0) {
+        for (const pdf of flags.pdfDocs.slice(0, 2)) {
+          if (pdf.blob && pdf.blob.size < 8 * 1024 * 1024) {
+            const b64 = await blobToBase64(pdf.blob);
+            parts.push({
+              inlineData: {
+                mimeType: 'application/pdf',
+                data: b64
+              }
+            });
+          }
+        }
+      }
+
+      const groundingUnavailable = sessionStorage.getItem('ai_supporter_direct_grounding_unavail') === 'true';
+      const shouldTrySearch = Boolean(flags.isSearchQuery) && (!flags.pdfDocs || flags.pdfDocs.length === 0) && !groundingUnavailable;
+
+      const sendOnce = async (enableSearch, disableThinking = true) => {
+        const genConfig = {
+          maxOutputTokens: 900,
+          temperature: 0.7
+        };
+        if (disableThinking) {
+          genConfig.thinkingConfig = { thinkingBudget: 0 };
+        }
+        const payload = {
+          contents: [{ role: 'user', parts }],
+          systemInstruction: {
+            parts: [{ text: buildSystemInstruction(flags) }]
+          },
+          generationConfig: genConfig
+        };
+        if (enableSearch) {
+          payload.tools = [{ google_search: {} }];
+        }
+        return await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      };
+
+      // 必要な場合のみGoogle検索グラウンディング付きで試行（通常会話は最初から1往復で即答）
+      let res = await sendOnce(shouldTrySearch, true);
+
+      // 思考オフ設定非対応モデルの場合は標準設定でフォールバック
+      if (!res.ok && res.status === 400) {
+        res = await sendOnce(shouldTrySearch, false);
+      }
+
+      // 無料枠APIキーで検索グラウンディング上限が出た場合は制限状態を記憶し、検索なしで即座に再試行
+      if (!res.ok && shouldTrySearch && res.status === 429) {
+        sessionStorage.setItem('ai_supporter_direct_grounding_unavail', 'true');
+        res = await sendOnce(false, true);
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error?.message || `HTTP ${res.status}`);
+      }
+
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      return parseStructuredAiJson(rawText);
+    }
+
+    function parseStructuredAiJson(rawText) {
+      const fallbackChoices = getDefaultChoices();
+      try {
+        const cleaned = String(rawText || '')
+          .replace(/```json\s*/gi, '')
+          .replace(/```\s*/g, '')
+          .trim();
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);
+        return {
+          htmlText: parsed.htmlText || String(rawText).replace(/\n/g, '<br>'),
+          choices: Array.isArray(parsed.choices) && parsed.choices.length === 4
+            ? parsed.choices
+            : fallbackChoices
+        };
+      } catch (e) {
+        return {
+          htmlText: String(rawText || 'おへんじ を つくれませんでした。').replace(/\n/g, '<br>'),
+          choices: fallbackChoices
+        };
+      }
+    }
+
+    async function callGasRelayApi(userText, flags) {
+      const gasUrl = (apiConfig.gasUrl || '').trim();
+      if (gasUrl.endsWith('/dev')) {
+        throw new Error('GASのテスト用URL（末尾 /dev）が設定されています。ウェブアプリ公開URL（末尾 /exec）を保存してください。');
+      }
+
+      // 登録PDF資料がある場合はサイズ上限内で添付
+      const pdfFiles = [];
+      if (flags.pdfDocs && flags.pdfDocs.length > 0) {
+        for (const pdf of flags.pdfDocs.slice(0, 2)) {
+          if (pdf.blob && pdf.blob.size < 6 * 1024 * 1024) {
+            const b64 = await blobToBase64(pdf.blob);
+            pdfFiles.push({ name: pdf.name, mimeType: 'application/pdf', data: b64 });
+          }
+        }
+      }
+
+      const payload = {
+        action: 'chat',
+        passcode: apiConfig.gasPasscode,
+        userText,
+        useSearch: Boolean(flags.isSearchQuery),
+        systemInstruction: buildSystemInstruction(flags),
+        pdfFiles
+      };
+
+      // CORSプリフライト（OPTIONS通信）を回避するため text/plain でJSON文字列を送信
+      let res;
+      try {
+        res = await fetchWithBackoff(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+          redirect: 'follow'
+        });
+      } catch (netErr) {
+        throw new Error('GASサーバーへ接続できませんでした。URLの誤り、またはローカル(file://)制限の可能性があります。');
+      }
+
+      const rawBody = await res.text();
+      if (rawBody.trim().startsWith('<')) {
+        throw new Error('GASからHTML画面が返されました。GASのデプロイ設定で「アクセスできるユーザー」を「全員」にして再デプロイしてください。');
+      }
+
+      let data;
+      try {
+        data = JSON.parse(rawBody);
+      } catch (parseErr) {
+        throw new Error('GASからの応答形式が正しくありません（JSON解析エラー）。Code.gs の内容を確認してください。');
+      }
+
+      if (data.ok === false || data.error) {
+        throw new Error(data.message || data.error || 'GAS側でエラーが発生しました');
+      }
+
+      if (data.htmlText) return data;
+      return parseStructuredAiJson(data.text || JSON.stringify(data));
+    }
+
+    async function testGasRelayConnection() {
+      const resultBox = document.getElementById('gasConnectionTestResult');
+      resultBox.classList.remove('hidden');
+      resultBox.className = 'p-3 rounded-xl bg-slate-900 border border-slate-700 text-xs text-amber-300 leading-relaxed';
+      resultBox.textContent = '⏳ GASサーバーへの接続と合言葉を確認しています...';
+
+      try {
+        const gasUrl = (apiConfig.gasUrl || '').trim();
+        if (gasUrl.endsWith('/dev')) {
+          throw new Error('URLの末尾が /dev になっています。公開用の /exec URL を設定してください。');
+        }
+        const res = await fetch(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'ping', passcode: apiConfig.gasPasscode }),
+          redirect: 'follow'
+        });
+        const raw = await res.text();
+        if (raw.trim().startsWith('<')) {
+          throw new Error('GASのアクセス権限が「全員」になっていないため、Googleログイン画面が返されました。');
+        }
+        const data = JSON.parse(raw);
+        if (data.ok === false || data.error) {
+          throw new Error(data.message || data.error);
+        }
+        resultBox.className = 'p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/60 text-xs text-emerald-300 font-bold leading-relaxed';
+        resultBox.textContent = `✅ ${data.message || 'GASサーバー接続・合言葉認証に成功しました！'}`;
+      } catch (err) {
+        resultBox.className = 'p-3 rounded-xl bg-rose-950/60 border border-rose-500/60 text-xs text-rose-200 leading-relaxed';
+        resultBox.textContent = `❌ 接続失敗：${err.message}`;
+      }
+    }
+
+    async function fetchWithBackoff(url, options, retries = 3) {
+      let delay = 1000;
+      for (let i = 0; i < retries; i++) {
+        const res = await fetch(url, options);
+        if (res.ok) return res;
+        if (res.status === 429 || res.status >= 500) {
+          await new Promise(r => setTimeout(r, delay));
+          delay *= 2;
+        } else {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      }
+      throw new Error('Max retries reached');
+    }
+
+    /*************************************************************************
+     * 11. デモ動作確認モード用応答生成（APIキーなしでも全機能を完全体験）
+     *************************************************************************/
+    function generateDemoResponse(userText, flags) {
+      const profile = getCurrentProfile();
+      const aiName = escapeHtml(getEffectiveAiName(profile));
+      const useKanji = profile.kanjiLevel !== 'hiragana';
+
+      // パターンA: 自己紹介のやり方を尋ねられた場合
+      if (flags.isSelfIntroHowTo) {
+        const htmlText = useKanji
+          ? `<ruby>自己紹介<rt>じこしょうかい</rt></ruby> は 4つの じゅんばんで はなすと じょうずに できるよ！<br>①「こんにちは！」と げんきに あいさつ<br>②「わたしの <ruby>名前<rt>なまえ</rt></ruby>は 〇〇 です」<br>③「<ruby>好<rt>す</rt></ruby>きな ことは 〇〇 です」<br>④「よろしく おねがいします！」`
+          : `じこしょうかい は 4つの じゅんばん で はなすと じょうず に できるよ！<br>①「こんにちは！」と げんき に あいさつ<br>②「わたしの なまえ は 〇〇 です」<br>③「すきな こと は 〇〇 です」<br>④「よろしく おねがい します！」`;
+        return {
+          htmlText,
+          choices: [
+            { emoji: '👋', label: 'あいさつの れんしゅう', query: 'げんきな あいさつ を れんしゅう したい' },
+            { emoji: '🤖', label: 'じこしょうかい して', query: 'じこしょうかい して！' },
+            { emoji: '🍎', label: 'すきな たべもの', query: 'すきな たべもの の はなし を しよう' },
+            { emoji: '🎵', label: 'あさの うた', query: 'あさの かい の ながれ を おしえて' }
+          ]
+        };
+      }
+
+      // パターンB: AI側が自己紹介を求められた場合（文科省ガイドライン4つの注意点）
+      if (flags.isAiSelfIntro) {
+        const htmlText = useKanji
+          ? `こんにちは！ わたしは <strong>${aiName}</strong> です。<br>みなさんと いっしょに つかう ときの <strong>4つの お<ruby>約束<rt>やくそく</rt></ruby></strong> を つたえるね！<br>① AIは <ruby>人間<rt>にんげん</rt></ruby> ではなく コンピュータ（きかい） です。<br>② ときどき まちがえる ことが あります。<br>③ <ruby>大切<rt>たいせつ</rt></ruby>な ことは かならず <ruby>先生<rt>せんせい</rt></ruby> や おとな と <ruby>確認<rt>かくにん</rt></ruby> しよう。<br>④ <ruby>名前<rt>なまえ</rt></ruby> や <ruby>住所<rt>じゅうしょ</rt></ruby> など <ruby>大切<rt>たいせつ</rt></ruby>な ひみつ は おしえないでね。`
+          : `こんにちは！ わたしは <strong>${aiName}</strong> です。<br>みなさんと いっしょに つかう ときの <strong>4つの おやくそく</strong> を つたえるね！<br>① AIは にんげん ではなく コンピュータ（きかい） です。<br>② ときどき まちがえる ことが あります。<br>③ たいせつな ことは かならず せんせい や おとな と かくにん しよう。<br>④ なまえ や じゅうしょ など たいせつな ひみつ は おしえないでね。`;
+        return {
+          htmlText,
+          choices: [
+            { emoji: '🗣️', label: 'じこしょうかい の やりかた', query: 'じこしょうかい の やりかた を おしえて' },
+            { emoji: '🧼', label: 'てあらい の しかた', query: 'てあらい の しかた を おしえて' },
+            { emoji: '🍱', label: 'たべものの えいよう', query: 'きゅうしょく の えいよう を しらべて' },
+            { emoji: '☀️', label: 'きょうの てんき', query: 'きょうの てんき を おしえて' }
+          ]
+        };
+      }
+
+      // パターンC: 登録PDF資料がある場合
+      if (flags.pdfDocs && flags.pdfDocs.length > 0 && (flags.isSearchQuery || (flags.matchedPdfs && flags.matchedPdfs.length > 0))) {
+        const pdfName = flags.pdfDocs[0].name;
+        const htmlText = useKanji
+          ? `とうろく された <ruby>資料<rt>しりょう</rt></ruby>「${escapeHtml(pdfName)}」を しらべたよ！ したの ボタンで おおきく ひらけるよ。<br>① まず じゅんび する もの を <ruby>確認<rt>かくにん</rt></ruby> します。<br>② じゅんばん どおり に ひとつずつ すすめます。<br>③ わからない ときは <ruby>先生<rt>せんせい</rt></ruby> に てを あげて ききます。<br>④ おわったら きれいに かたづけ を します。`
+          : `とうろく された しりょう「${escapeHtml(pdfName)}」を しらべたよ！ したの ボタンで おおきく ひらけるよ。<br>① まず じゅんび する もの を かくにん します。<br>② じゅんばん どおり に ひとつずつ すすめます。<br>③ わからない ときは せんせい に てを あげて ききます。<br>④ おわったら きれいに かたづけ を します。`;
+        return { htmlText, choices: getDefaultChoices() };
+      }
+
+      // パターンD: 登録動画・絵カード・音楽MP3のキーワードが一致した場合
+      const hasAnyMedia = (flags.matchedVideos && flags.matchedVideos.length > 0)
+        || (flags.matchedImages && flags.matchedImages.length > 0)
+        || (flags.matchedAudios && flags.matchedAudios.length > 0);
+      if (hasAnyMedia) {
+        const htmlText = useKanji
+          ? `「${escapeHtml(userText)}」に ぴったり の <ruby>動画<rt>どうが</rt></ruby>・<ruby>絵<rt>え</rt></ruby>カード・おんがく を みつけたよ！<br>がめん の ボタン を おして、おおきく みて みよう！`
+          : `「${escapeHtml(userText)}」に ぴったり の どうが・えカード・おんがく を みつけたよ！<br>がめん の ボタン を おして、おおきく みて みよう！`;
+        return { htmlText, choices: getDefaultChoices() };
+      }
+
+      // パターンE-1: 直前1回分のやりとりを踏まえた深掘り質問（「もっとくわしく」「なぜ」「どうして」等）
+      if (flags.prevTurn && /(もっと|くわしく|詳しく|なぜ|どうして|それで|それから|どういうこと|つづき|続き)/.test(userText)) {
+        const prevTopic = escapeHtml(flags.prevTurn.user.slice(0, 20));
+        const htmlText = useKanji
+          ? `さっき の「${prevTopic}」について、もうすこし くわしく おしえるね！<br>① たいせつな ところを ひとつずつ ゆっくり みてみよう。<br>② じぶんの みのまわり でも さがして みると わかりやすいよ。<br>③ もっと しりたい ことが あったら いつでも きいてね！<br>④ わかっ たことは <ruby>先生<rt>せんせい</rt></ruby> にも おはなし して みよう！`
+          : `さっき の「${prevTopic}」について、もうすこし くわしく おしえるね！<br>① たいせつな ところを ひとつずつ ゆっくり みてみよう。<br>② じぶんの みのまわり でも さがして みると わかりやすいよ。<br>③ もっと しりたい ことが あったら いつでも きいてね！<br>④ わかった ことは せんせい にも おはなし して みよう！`;
+        return { htmlText, choices: getDefaultChoices() };
+      }
+
+      // パターンE-2: 調べ学習・質問（「おしえて」「しらべて」「クイズ」等）
+      if (flags.isSearchQuery) {
+        const htmlText = useKanji
+          ? `「${escapeHtml(userText)}」について、4つの だいじな ポイント を おしえるね！<br>① まず は よく みて ゆっくり かんがえよう。<br>② ひとつずつ じゅんばん に やって みよう。<br>③ じょうず に できたら じぶん を ほめよう！<br>④ もっと しりたい ときは「もっと くわしく おしえて」と きいてね。`
+          : `「${escapeHtml(userText)}」について、4つの だいじな ポイント を おしえるね！<br>① まず は よく みて ゆっくり かんがえよう。<br>② ひとつずつ じゅんばん に やって みよう。<br>③ じょうず に できたら じぶん を ほめよう！<br>④ もっと しりたい ときは「もっと くわしく おしえて」と きいてね。`;
+        return { htmlText, choices: getDefaultChoices() };
+      }
+
+      // パターンF: 通常の挨拶・会話応答
+      const htmlText = useKanji
+        ? `「${escapeHtml(userText)}」と おはなし して くれて ありがとう！<br>きょう も いっしょ に たのしく がんばろうね！`
+        : `「${escapeHtml(userText)}」と おはなし して くれて ありがとう！<br>きょう も いっしょ に たのしく がんばろうね！`;
+      return { htmlText, choices: getDefaultChoices() };
+    }
+
+    /*************************************************************************
+     * 12. 教員設定フォーム反映・プロファイル操作・APIセキュリティ制御
+     *************************************************************************/
+    async function populateTeacherSettingsForm() {
+      const selectEl = document.getElementById('profileSelect');
+      selectEl.innerHTML = '';
+      Object.values(profiles).forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.className;
+        if (p.id === activeProfileId) opt.selected = true;
+        selectEl.appendChild(opt);
+      });
+
+      const profile = getCurrentProfile();
+      document.getElementById('setClassName').value = profile.className || '';
+      document.getElementById('setClassGoal').value = profile.classGoal || '';
+      document.getElementById('setAiName').value = getEffectiveAiName(profile);
+      document.getElementById('setSystemPrompt').value = profile.systemPrompt || '';
+      document.getElementById('setKanjiLevel').value = profile.kanjiLevel || 'hiragana';
+      document.getElementById('setLedColor').value = profile.ledColor || '#22c55e';
+      document.getElementById('setImageAnimMode').value = profile.imageAnimMode || 'mouth';
+
+      document.querySelectorAll('input[name="speechMode"]').forEach(r => {
+        r.checked = (r.value === (profile.speechMode || 'manual'));
+      });
+      document.querySelectorAll('input[name="avatarType"]').forEach(r => {
+        r.checked = (r.value === (profile.avatarType || 'led'));
+      });
+      updateAvatarOptionBoxesVisibility(profile.avatarType || 'led');
+
+      const imgAsset = await idbGetMediaById(profile.customImageDataId);
+      document.getElementById('avatarImageStatus').textContent = imgAsset
+        ? `✅ 登録済み画像：「${imgAsset.name}」`
+        : 'まだ画像が登録されていません。';
+
+      const vidAsset = await idbGetMediaById(profile.idleVideoDataId);
+      document.getElementById('idleVideoStatus').textContent = vidAsset
+        ? `✅ 登録済み待機動画：「${vidAsset.name}」`
+        : 'まだ待機動画が登録されていません。';
+
+      // API設定反映（セキュリティ保護のため、保存済みの値は入力欄に絶対にセットせず常に空にする）
+      clearApiInputElements();
+      document.querySelectorAll('input[name="apiConnMode"]').forEach(r => {
+        r.checked = (r.value === apiConfig.mode);
+      });
+      renderApiSecurityPanel();
+    }
+
+    function clearApiInputElements() {
+      const k = document.getElementById('inputGeminiApiKey');
+      const u = document.getElementById('inputGasUrl');
+      const p = document.getElementById('inputGasPasscode');
+      if (k) k.value = '';
+      if (u) u.value = '';
+      if (p) p.value = '';
+    }
+
+    function persistApiConfigSecurely() {
+      localStorage.setItem(STORAGE_API_KEY, encodeSecureStorage(apiConfig));
+    }
+
+    function onApiConnModeChange(newMode) {
+      apiConfig.mode = newMode;
+      isEditingDirectApi = false;
+      isEditingGasApi = false;
+      clearApiInputElements();
+      persistApiConfigSecurely();
+      renderApiSecurityPanel();
+      if (newMode === 'demo') {
+        showToast('デモ動作確認モードに切り替えました');
+      }
+    }
+
+    function renderApiSecurityPanel() {
+      const mode = apiConfig.mode;
+      const directBox = document.getElementById('directApiConfigBox');
+      const gasBox = document.getElementById('gasApiConfigBox');
+
+      directBox.classList.toggle('hidden', mode !== 'direct');
+      gasBox.classList.toggle('hidden', mode !== 'gas');
+
+      // 2. 個別APIキーモードの表示制御
+      if (mode === 'direct') {
+        const hasSaved = Boolean(apiConfig.geminiKey);
+        const showSavedCard = hasSaved && !isEditingDirectApi;
+        document.getElementById('directApiSavedCard').classList.toggle('hidden', !showSavedCard);
+        document.getElementById('directApiEditForm').classList.toggle('hidden', showSavedCard);
+        document.getElementById('cancelDirectApiBtn').classList.toggle('hidden', !hasSaved);
+      }
+
+      // 3. GAS中継モードの表示制御
+      if (mode === 'gas') {
+        const hasSaved = Boolean(apiConfig.gasUrl);
+        const showSavedCard = hasSaved && !isEditingGasApi;
+        document.getElementById('gasApiSavedCard').classList.toggle('hidden', !showSavedCard);
+        document.getElementById('gasApiEditForm').classList.toggle('hidden', showSavedCard);
+        document.getElementById('cancelGasApiBtn').classList.toggle('hidden', !hasSaved);
+      }
+    }
+
+    function saveDirectApiSettings() {
+      const keyVal = document.getElementById('inputGeminiApiKey').value.trim();
+      if (!keyVal) {
+        showToast('Gemini APIキーを入力してください');
+        return;
+      }
+      apiConfig.mode = 'direct';
+      apiConfig.geminiKey = keyVal;
+      sessionStorage.removeItem('ai_supporter_direct_grounding_unavail');
+      clearApiInputElements();
+      isEditingDirectApi = false;
+      persistApiConfigSecurely();
+      renderApiSecurityPanel();
+      showToast('保存しました（入力欄はセキュリティのため非表示にしました）');
+    }
+
+    function startEditDirectApi() {
+      clearApiInputElements();
+      isEditingDirectApi = true;
+      renderApiSecurityPanel();
+      document.getElementById('inputGeminiApiKey').focus();
+    }
+
+    function cancelEditDirectApi() {
+      clearApiInputElements();
+      isEditingDirectApi = false;
+      renderApiSecurityPanel();
+    }
+
+    function deleteDirectApiSettings() {
+      showCustomConfirm('APIキーの削除', '保存されている個別 Gemini APIキーを削除してもよろしいですか？', () => {
+        apiConfig.geminiKey = '';
+        clearApiInputElements();
+        isEditingDirectApi = false;
+        persistApiConfigSecurely();
+        renderApiSecurityPanel();
+        showToast('保存されていたAPIキーを削除しました');
+      });
+    }
+
+    function saveGasApiSettings() {
+      const urlVal = document.getElementById('inputGasUrl').value.trim();
+      const passVal = document.getElementById('inputGasPasscode').value.trim();
+      if (!urlVal) {
+        showToast('GAS Webアプリ URL を入力してください');
+        return;
+      }
+      apiConfig.mode = 'gas';
+      apiConfig.gasUrl = urlVal;
+      apiConfig.gasPasscode = passVal;
+      clearApiInputElements();
+      isEditingGasApi = false;
+      persistApiConfigSecurely();
+      renderApiSecurityPanel();
+      const testBox = document.getElementById('gasConnectionTestResult');
+      if (testBox) testBox.classList.add('hidden');
+      if (urlVal.endsWith('/dev')) {
+        showToast('注意：URL末尾が /dev です。公開用 /exec URL を推奨します');
+      } else {
+        showToast('保存しました（「📡 接続テスト」で動作確認できます）');
+      }
+    }
+
+    function startEditGasApi() {
+      clearApiInputElements();
+      isEditingGasApi = true;
+      renderApiSecurityPanel();
+      document.getElementById('inputGasUrl').focus();
+    }
+
+    function cancelEditGasApi() {
+      clearApiInputElements();
+      isEditingGasApi = false;
+      renderApiSecurityPanel();
+    }
+
+    function deleteGasApiSettings() {
+      showCustomConfirm('GAS設定の削除', '保存されている GAS Webアプリ URL と校内合言葉を削除してもよろしいですか？', () => {
+        apiConfig.gasUrl = '';
+        apiConfig.gasPasscode = '';
+        clearApiInputElements();
+        isEditingGasApi = false;
+        persistApiConfigSecurely();
+        renderApiSecurityPanel();
+        const testBox = document.getElementById('gasConnectionTestResult');
+        if (testBox) testBox.classList.add('hidden');
+        showToast('保存されていたGAS設定を削除しました');
+      });
+    }
+
+    /*************************************************************************
+     * 13. プロファイル操作・一般設定保存・教材メディア登録管理（PDF / 画像 / 動画 / MP3）
+     *************************************************************************/
+    async function switchProfile(profileId) {
+      if (!profiles[profileId]) return;
+      activeProfileId = profileId;
+      lastTurnContext = null;
+      persistProfiles();
+      await populateTeacherSettingsForm();
+      await applyCurrentProfileToUI();
+      showToast(`「${profiles[profileId].className}」に切り替えました`);
+    }
+
+    async function createNewProfile() {
+      const newId = 'profile_' + Date.now();
+      const count = Object.keys(profiles).length + 1;
+      profiles[newId] = {
+        id: newId,
+        className: `${count}じかんめ：あたらしい じゅぎょう`,
+        classGoal: 'めあて：たのしく まなぼう！',
+        aiName: 'AIサポーター',
+        systemPrompt: '特別支援学校の授業です。優しく短く分かりやすく話してください。',
+        kanjiLevel: 'hiragana',
+        speechMode: 'manual',
+        avatarType: 'led',
+        ledColor: '#22c55e',
+        imageAnimMode: 'mouth',
+        customImageDataId: null,
+        idleVideoDataId: null
+      };
+      activeProfileId = newId;
+      lastTurnContext = null;
+      persistProfiles();
+      await populateTeacherSettingsForm();
+      showToast('新しい授業プロファイルを作成しました');
+    }
+
+    async function duplicateCurrentProfile() {
+      const current = getCurrentProfile();
+      const newId = 'profile_' + Date.now();
+      profiles[newId] = {
+        ...JSON.parse(JSON.stringify(current)),
+        id: newId,
+        className: `${current.className}（コピー）`
+      };
+      activeProfileId = newId;
+      lastTurnContext = null;
+      persistProfiles();
+      await populateTeacherSettingsForm();
+      showToast('現在の授業プロファイルを複製しました');
+    }
+
+    function deleteCurrentProfile() {
+      const keys = Object.keys(profiles);
+      if (keys.length <= 1) {
+        showToast('最後の1つのプロファイルは削除できません');
+        return;
+      }
+      const current = getCurrentProfile();
+      showCustomConfirm('プロファイルの削除', `「${current.className}」を削除してもよろしいですか？`, async () => {
+        delete profiles[activeProfileId];
+        activeProfileId = Object.keys(profiles)[0];
+        lastTurnContext = null;
+        persistProfiles();
+        await populateTeacherSettingsForm();
+        showToast('プロファイルを削除しました');
+      });
+    }
+
+    function updateAvatarOptionBoxesVisibility(avatarType) {
+      document.getElementById('ledOptionBox').classList.toggle('hidden', avatarType !== 'led');
+      document.getElementById('imageOptionBox').classList.toggle('hidden', avatarType !== 'image');
+      document.getElementById('videoOptionBox').classList.toggle('hidden', avatarType !== 'video');
+    }
+
+    function saveGeneralSettings() {
+      const profile = getCurrentProfile();
+      profile.className = document.getElementById('setClassName').value.trim() || 'じゅぎょう';
+      profile.classGoal = document.getElementById('setClassGoal').value.trim();
+      profile.aiName = document.getElementById('setAiName').value.trim() || 'AIサポーター';
+      profile.systemPrompt = document.getElementById('setSystemPrompt').value.trim();
+      profile.kanjiLevel = document.getElementById('setKanjiLevel').value;
+      profile.ledColor = document.getElementById('setLedColor').value;
+      profile.imageAnimMode = document.getElementById('setImageAnimMode').value;
+
+      const checkedSpeech = document.querySelector('input[name="speechMode"]:checked');
+      if (checkedSpeech) profile.speechMode = checkedSpeech.value;
+
+      const checkedAvatar = document.querySelector('input[name="avatarType"]:checked');
+      if (checkedAvatar) {
+        profile.avatarType = checkedAvatar.value;
+        updateAvatarOptionBoxesVisibility(profile.avatarType);
+      }
+
+      persistProfiles();
+
+      // プロファイル選択肢の表示名も即時更新
+      const selectEl = document.getElementById('profileSelect');
+      if (selectEl && selectEl.selectedOptions[0]) {
+        selectEl.selectedOptions[0].textContent = profile.className;
+      }
+    }
+
+    async function handleAvatarImageUpload(input) {
+      const file = input.files?.[0];
+      if (!file) return;
+      const mediaId = 'avatar_img_' + Date.now();
+      await idbPutMedia({
+        id: mediaId,
+        type: 'avatar_image',
+        name: file.name,
+        size: file.size,
+        keywords: '',
+        blob: file,
+        createdAt: Date.now()
+      });
+      const profile = getCurrentProfile();
+      profile.customImageDataId = mediaId;
+      profile.avatarType = 'image';
+      persistProfiles();
+      document.getElementById('avatarImageStatus').textContent = `✅ 登録済み画像：「${file.name}」`;
+      await refreshMediaListUI();
+      showToast('自作画像アバターを登録しました');
+      input.value = '';
+    }
+
+    async function handleIdleVideoUpload(input) {
+      const file = input.files?.[0];
+      if (!file) return;
+      const mediaId = 'idle_vid_' + Date.now();
+      await idbPutMedia({
+        id: mediaId,
+        type: 'idle_video',
+        name: file.name,
+        size: file.size,
+        keywords: '',
+        blob: file,
+        createdAt: Date.now()
+      });
+      const profile = getCurrentProfile();
+      profile.idleVideoDataId = mediaId;
+      profile.avatarType = 'video';
+      persistProfiles();
+      document.getElementById('idleVideoStatus').textContent = `✅ 登録済み待機動画：「${file.name}」`;
+      await refreshMediaListUI();
+      showToast('カスタム待機動画を登録しました');
+      input.value = '';
+    }
+
+    function onMediaUploadTypeChange() {
+      const type = document.getElementById('mediaUploadType').value;
+      const fileWrapper = document.getElementById('mediaFileWrapper');
+      const ytWrapper = document.getElementById('mediaYoutubeUrlWrapper');
+      const labelEl = document.getElementById('mediaKeywordLabel');
+      const inputEl = document.getElementById('mediaKeywordsInput');
+      const hintEl = document.getElementById('mediaKeywordHint');
+
+      fileWrapper.classList.toggle('hidden', type === 'youtube');
+      ytWrapper.classList.toggle('hidden', type !== 'youtube');
+
+      if (type === 'pdf') {
+        labelEl.textContent = '3. トリガーキーワード（任意・カンマ区切り）';
+        inputEl.placeholder = '例：しおり, ワークシート, こうていひょう';
+        hintEl.textContent = '空欄でもAIは常に参照します。キーワードを入れると会話中に全画面ボタンも自動出現します。';
+      } else if (type === 'audio') {
+        labelEl.textContent = '3. トリガーキーワード（カンマ区切り）';
+        inputEl.placeholder = '例：あさのうた, おんがく, チャイム';
+        hintEl.textContent = '会話中にこの言葉が出ると自動でMP3音楽を再生します。';
+      } else if (type === 'youtube') {
+        labelEl.textContent = '3. トリガーキーワード（カンマ区切り）';
+        inputEl.placeholder = '例：たいそう, ダンス, てあらい';
+        hintEl.textContent = '会話中にこの言葉が出ると自動でYouTube動画を再生・拡大ボタンを表示します。';
+      } else {
+        labelEl.textContent = '3. トリガーキーワード（カンマ区切り）';
+        inputEl.placeholder = '例：てあらい, あらいかた, せっけん';
+        hintEl.textContent = '会話中にこの言葉が出ると自動で再生・全画面拡大ボタンを表示します。';
+      }
+    }
+
+    async function registerMediaItem() {
+      const type = document.getElementById('mediaUploadType').value;
+      const fileInput = document.getElementById('mediaFileInput');
+      const ytUrlInput = document.getElementById('mediaYoutubeUrlInput');
+      const ytTitleInput = document.getElementById('mediaYoutubeTitleInput');
+      const kwInput = document.getElementById('mediaKeywordsInput');
+      const keywords = kwInput.value.trim();
+
+      if (type === 'youtube') {
+        const rawUrl = ytUrlInput.value.trim();
+        if (!rawUrl) {
+          showToast('YouTube の URL を入力してください');
+          return;
+        }
+        const ytInfo = extractYouTubeInfo(rawUrl);
+        if (!ytInfo) {
+          showToast('有効な YouTube の URL を入力してください（例：https://www.youtube.com/watch?v=...）');
+          return;
+        }
+        if (!keywords) {
+          showToast('トリガーキーワードを入力してください（例：たいそう, てあらい）');
+          return;
+        }
+        const displayTitle = ytTitleInput.value.trim() || `YouTube動画 (${ytInfo.videoId})`;
+        const item = {
+          id: 'media_' + Date.now(),
+          type: 'youtube',
+          name: displayTitle,
+          youtubeUrl: rawUrl,
+          youtubeId: ytInfo.videoId,
+          startSec: ytInfo.startSec,
+          size: 0,
+          keywords,
+          createdAt: Date.now()
+        };
+        await idbPutMedia(item);
+        ytUrlInput.value = '';
+        ytTitleInput.value = '';
+        kwInput.value = '';
+        await refreshMediaListUI();
+        showToast(`「${displayTitle}」をキーワード連動登録しました`);
+        return;
+      }
+
+      const file = fileInput.files?.[0];
+
+      if (!file) {
+        showToast('ファイルを選択してください');
+        return;
+      }
+
+      if ((type === 'video' || type === 'image' || type === 'audio') && !keywords) {
+        showToast('トリガーキーワードを入力してください（例：てあらい, あさのうた）');
+        return;
+      }
+
+      const item = {
+        id: 'media_' + Date.now(),
+        type,
+        name: file.name,
+        size: file.size,
+        keywords,
+        blob: file,
+        createdAt: Date.now()
+      };
+
+      await idbPutMedia(item);
+      fileInput.value = '';
+      kwInput.value = '';
+      await refreshMediaListUI();
+      showToast(`「${file.name}」をIndexedDBに保存しました`);
+    }
+
+    async function refreshMediaListUI() {
+      const allItems = await idbGetAllMedia();
+      const totalBytes = allItems.reduce((sum, it) => sum + (it.size || 0), 0);
+      const usageEl = document.getElementById('indexedDbUsageText');
+      if (usageEl) {
+        usageEl.textContent = `${(totalBytes / (1024 * 1024)).toFixed(2)} MB`;
+      }
+
+      const container = document.getElementById('mediaListContainer');
+      if (!container) return;
+
+      const teachingItems = allItems.filter(it => ['video', 'youtube', 'image', 'audio', 'pdf'].includes(it.type));
+      if (teachingItems.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400">まだ登録されていません。</p>';
+        return;
+      }
+
+      container.innerHTML = '';
+      teachingItems.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-wrap items-center justify-between gap-3';
+
+        const badgeMap = {
+          video: { label: '🎬 動画(MP4)', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+          youtube: { label: '📺 YouTube', cls: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
+          image: { label: '🖼️ 絵カード', cls: 'bg-sky-500/20 text-sky-300 border-sky-500/40' },
+          audio: { label: '🎵 音楽(MP3)', cls: 'bg-purple-500/20 text-purple-300 border-purple-500/40' },
+          pdf: { label: '📄 PDF資料', cls: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' }
+        };
+        const badge = badgeMap[item.type] || badgeMap.pdf;
+        const sizeLabel = item.type === 'youtube'
+          ? '(YouTubeリンク・容量0MB)'
+          : `(${((item.size || 0) / (1024 * 1024)).toFixed(2)} MB)`;
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'min-w-0 flex-1 space-y-1';
+        infoDiv.innerHTML = `
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-bold px-2 py-0.5 rounded-md border ${badge.cls}">${badge.label}</span>
+            <span class="text-sm font-bold text-white truncate">${escapeHtml(item.name)}</span>
+            <span class="text-xs text-slate-400">${sizeLabel}</span>
+          </div>
+          <div class="text-xs text-slate-300">
+            🔑 キーワード：<span class="text-amber-300 font-bold">${escapeHtml(item.keywords || (item.type === 'pdf' ? '未設定（AIが常時参照）' : '未設定'))}</span>
+          </div>
+        `;
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'flex items-center gap-2 shrink-0';
+
+        if (item.type === 'video' || item.type === 'youtube' || item.type === 'audio') {
+          const testBtn = document.createElement('button');
+          testBtn.type = 'button';
+          testBtn.className = 'px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold';
+          testBtn.textContent = '▶️ テスト再生';
+          testBtn.onclick = () => testPlayAvMedia(item);
+          actionsDiv.appendChild(testBtn);
+        }
+
+        const expandBtn = document.createElement('button');
+        expandBtn.type = 'button';
+        expandBtn.className = 'px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold';
+        expandBtn.textContent = '⛶ 全画面確認';
+        expandBtn.onclick = () => openUniversalMediaModal(item);
+        actionsDiv.appendChild(expandBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'px-3 py-1.5 rounded-lg bg-rose-900/80 hover:bg-rose-700 text-rose-100 text-xs font-bold';
+        delBtn.textContent = '🗑️ 削除';
+        delBtn.onclick = () => {
+          showCustomConfirm('教材・メディアの削除', `「${item.name}」を削除してもよろしいですか？`, async () => {
+            await idbDeleteMedia(item.id);
+            await refreshMediaListUI();
+            showToast('削除しました');
+          });
+        };
+        actionsDiv.appendChild(delBtn);
+
+        row.appendChild(infoDiv);
+        row.appendChild(actionsDiv);
+        container.appendChild(row);
+      });
+    }
+
+    // MP4動画・YouTube・MP3音楽のiPad/ブラウザデコード・再生テスト検証
+    function testPlayAvMedia(item) {
+      const box = document.getElementById('mediaTestBox');
+      const titleEl = document.getElementById('mediaTestTitle');
+      const vidPlayer = document.getElementById('mp4TestPlayer');
+      const ytPlayer = document.getElementById('youtubeTestPlayer');
+      const audPlayer = document.getElementById('mp3TestPlayer');
+      const resultEl = document.getElementById('mediaTestResult');
+
+      box.classList.remove('hidden');
+      titleEl.textContent = `▶️ テスト再生検証：${item.name}`;
+      resultEl.innerHTML = '<p class="text-amber-300 font-bold">⏳ ブラウザでの再生可否を検証しています...</p>';
+
+      if (item.type === 'youtube') {
+        vidPlayer.pause();
+        vidPlayer.classList.add('hidden');
+        audPlayer.pause();
+        audPlayer.classList.add('hidden');
+        ytPlayer.classList.remove('hidden');
+        ytPlayer.src = buildYouTubeEmbedUrl(item.youtubeId, {
+          autoplay: true,
+          mute: false,
+          start: item.startSec
+        });
+        resultEl.innerHTML = `
+          <p class="text-emerald-400 font-bold">✅ YouTubeリンクの埋め込みプレイヤーを読み込みました！</p>
+          <p class="text-slate-200">・動画ID：${escapeHtml(item.youtubeId)}<br>・※左の画面で映像が再生されるかご確認ください（動画オーナーが外部埋め込みを禁止している動画は再生できない場合があります）。</p>
+        `;
+        return;
+      }
+
+      ytPlayer.src = '';
+      ytPlayer.classList.add('hidden');
+      const url = URL.createObjectURL(item.blob);
+
+      if (item.type === 'audio') {
+        vidPlayer.pause();
+        vidPlayer.classList.add('hidden');
+        audPlayer.classList.remove('hidden');
+        audPlayer.src = url;
+
+        audPlayer.onloadedmetadata = () => {
+          const dur = audPlayer.duration ? audPlayer.duration.toFixed(1) + '秒' : '不明';
+          resultEl.innerHTML = `
+            <p class="text-emerald-400 font-bold">✅ 正常にデコード・再生できる音声ファイルです！</p>
+            <p class="text-slate-200">・再生時間：${dur}<br>・ファイルサイズ：${(item.size / (1024 * 1024)).toFixed(2)} MB</p>
+          `;
+        };
+        audPlayer.onerror = () => {
+          resultEl.innerHTML = `<p class="text-rose-400 font-bold">❌ このブラウザでは再生できない音声形式です（MP3 / M4A を推奨）。</p>`;
+        };
+        audPlayer.play().catch(() => {});
+      } else {
+        audPlayer.pause();
+        audPlayer.classList.add('hidden');
+        vidPlayer.classList.remove('hidden');
+        vidPlayer.src = url;
+        vidPlayer.muted = false;
+
+        vidPlayer.onloadedmetadata = () => {
+          const dur = vidPlayer.duration ? vidPlayer.duration.toFixed(1) + '秒' : '不明';
+          const res = (vidPlayer.videoWidth && vidPlayer.videoHeight) ? `${vidPlayer.videoWidth} x ${vidPlayer.videoHeight}` : '映像トラックなし';
+          if (vidPlayer.videoWidth === 0) {
+            resultEl.innerHTML = `
+              <p class="text-rose-400 font-bold">⚠️ 映像トラックが検出できません</p>
+              <p class="text-slate-300">H.264 / AAC 形式の MP4 に再エンコードすることをおすすめします。</p>
+            `;
+          } else {
+            resultEl.innerHTML = `
+              <p class="text-emerald-400 font-bold">✅ 正常にデコード・再生できる動画形式です！</p>
+              <p class="text-slate-200">・再生時間：${dur}<br>・解像度：${res}<br>・ファイルサイズ：${(item.size / (1024 * 1024)).toFixed(2)} MB</p>
+            `;
+          }
+        };
+
+        vidPlayer.onerror = () => {
+          resultEl.innerHTML = `
+            <p class="text-rose-400 font-bold">❌ このブラウザでは再生できない形式（コーデック非対応）です</p>
+            <p class="text-slate-300">iPad Safari および PC で確実に再生するには、<strong>H.264 (AVC) + AAC の MP4</strong> 形式で書き出してください。</p>
+          `;
+        };
+
+        vidPlayer.play().catch(() => {
+          vidPlayer.muted = true;
+          vidPlayer.play().catch(() => {});
+        });
+      }
+    }
+
+    function closeMediaTestBox() {
+      const box = document.getElementById('mediaTestBox');
+      const vidPlayer = document.getElementById('mp4TestPlayer');
+      const ytPlayer = document.getElementById('youtubeTestPlayer');
+      const audPlayer = document.getElementById('mp3TestPlayer');
+      vidPlayer.pause();
+      vidPlayer.removeAttribute('src');
+      ytPlayer.src = '';
+      audPlayer.pause();
+      audPlayer.removeAttribute('src');
+      box.classList.add('hidden');
+    }
+
+    /*************************************************************************
+     * 14. Word (.docx) ネイティブ生成エクスポート ＆ Word / PDF インポート
+     *     ※外部ライブラリ不要・ピュアJSによるOpenXML (.docx) ZIP生成＆解析
+     *************************************************************************/
+    function exportSettingsAsDocx(isTemplate) {
+      const profile = getCurrentProfile();
+      const aiName = getEffectiveAiName(profile);
+      const kanjiLabels = {
+        hiragana: 'ひらがなのみ',
+        grade1: '小学1年', grade2: '小学2年', grade3: '小学3年',
+        grade4: '小学4年', grade5: '小学5年', grade6: '小学6年',
+        jh1: '中学1年', jh2: '中学2年', jh3: '中学3年'
+      };
+      const avatarLabels = {
+        led: 'LEDドットマトリクス顔',
+        image: '自作画像アバター',
+        video: 'カスタム待機動画'
+      };
+
+      const lines = isTemplate ? [
+        '【特別支援学校 授業補助AIサポーター 授業設定シート（記入用テンプレート）】',
+        '※このWordファイルを編集して、アプリの「Word/PDF読み込み」にドロップすると一括反映されます。',
+        '',
+        '授業名：2じかんめ：せいかつ たんけん',
+        'めあて：あんぜん に こうえん へ いこう！',
+        'AIの名前：AIサポーター',
+        '文字レベル：ひらがなのみ',
+        'アバター設定：LEDドットマトリクス顔',
+        '音声入力方式：おわりボタン確定方式',
+        '授業の配慮指示：優しく短く、ステップごとに分かりやすく伝えてください。'
+      ] : [
+        '【特別支援学校 授業補助AIサポーター 授業設定シート】',
+        '',
+        `授業名：${profile.className}`,
+        `めあて：${profile.classGoal}`,
+        `AIの名前：${aiName}`,
+        `文字レベル：${kanjiLabels[profile.kanjiLevel] || 'ひらがなのみ'}`,
+        `アバター設定：${avatarLabels[profile.avatarType] || 'LEDドットマトリクス顔'}`,
+        `音声入力方式：${profile.speechMode === 'auto' ? '自動確定方式' : 'おわりボタン確定方式'}`,
+        `授業の配慮指示：${profile.systemPrompt || 'なし'}`
+      ];
+
+      const docxBlob = createMinimalDocxBlob(lines);
+      const filename = isTemplate ? 'AIサポーター_授業設定テンプレート.docx' : `授業設定_${profile.className}.docx`;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(docxBlob);
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      showToast(`Wordファイル（${filename}）をダウンロードしました`);
+    }
+
+    // 標準OpenXML (.docx) ファイルをピュアJSの無圧縮ZIPで構築
+    function createMinimalDocxBlob(paragraphs) {
+      const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+
+      const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+      const bodyXml = paragraphs.map(line => {
+        const escaped = line
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        return `<w:p><w:r><w:rPr><w:rFonts w:ascii="BIZ UDPGothic" w:eastAsia="BIZ UDPGothic"/><w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${escaped}</w:t></w:r></w:p>`;
+      }).join('');
+
+      const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>${bodyXml}</w:body>
+</w:document>`;
+
+      const files = [
+        { name: '[Content_Types].xml', data: new TextEncoder().encode(contentTypesXml) },
+        { name: '_rels/.rels', data: new TextEncoder().encode(relsXml) },
+        { name: 'word/document.xml', data: new TextEncoder().encode(documentXml) }
+      ];
+
+      return buildUncompressedZipBlob(files, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    }
+
+    // CRC32 ＆ 無圧縮ZIPビルダー
+    const crcTable = (() => {
+      const table = new Uint32Array(256);
+      for (let i = 0; i < 256; i++) {
+        let c = i;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+        table[i] = c;
+      }
+      return table;
+    })();
+
+    function crc32(bytes) {
+      let crc = 0xffffffff;
+      for (let i = 0; i < bytes.length; i++) {
+        crc = (crc >>> 8) ^ crcTable[(crc ^ bytes[i]) & 0xff];
+      }
+      return (crc ^ 0xffffffff) >>> 0;
+    }
+
+    function buildUncompressedZipBlob(files, mimeType) {
+      const localParts = [];
+      const centralParts = [];
+      let offset = 0;
+
+      for (const f of files) {
+        const nameBytes = new TextEncoder().encode(f.name);
+        const crc = crc32(f.data);
+        const size = f.data.length;
+
+        const localHeader = new Uint8Array(30 + nameBytes.length);
+        const lv = new DataView(localHeader.buffer);
+        lv.setUint32(0, 0x04034b50, true);
+        lv.setUint16(4, 20, true);
+        lv.setUint16(6, 0x0800, true);
+        lv.setUint16(8, 0, true);
+        lv.setUint32(14, crc, true);
+        lv.setUint32(18, size, true);
+        lv.setUint32(22, size, true);
+        lv.setUint16(26, nameBytes.length, true);
+        localHeader.set(nameBytes, 30);
+
+        localParts.push(localHeader, f.data);
+
+        const centralHeader = new Uint8Array(46 + nameBytes.length);
+        const cv = new DataView(centralHeader.buffer);
+        cv.setUint32(0, 0x02014b50, true);
+        cv.setUint16(4, 20, true);
+        cv.setUint16(6, 20, true);
+        cv.setUint16(8, 0x0800, true);
+        cv.setUint16(10, 0, true);
+        cv.setUint32(16, crc, true);
+        cv.setUint32(20, size, true);
+        cv.setUint32(24, size, true);
+        cv.setUint16(28, nameBytes.length, true);
+        cv.setUint32(42, offset, true);
+        centralHeader.set(nameBytes, 46);
+
+        centralParts.push(centralHeader);
+        offset += localHeader.length + size;
+      }
+
+      const centralSize = centralParts.reduce((s, p) => s + p.length, 0);
+      const eocd = new Uint8Array(22);
+      const ev = new DataView(eocd.buffer);
+      ev.setUint32(0, 0x06054b50, true);
+      ev.setUint16(8, files.length, true);
+      ev.setUint16(10, files.length, true);
+      ev.setUint32(12, centralSize, true);
+      ev.setUint32(16, offset, true);
+
+      return new Blob([...localParts, ...centralParts, eocd], { type: mimeType });
+    }
+
+    // Word (.docx) / PDF (.pdf) ドロップ＆選択読み込み
+    function handleDocDrop(e) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('border-emerald-400', 'bg-slate-800/80');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) importConfigurationDocument(file);
+    }
+
+    function handleDocFileSelect(input) {
+      const file = input.files?.[0];
+      if (file) importConfigurationDocument(file);
+      input.value = '';
+    }
+
+    async function importConfigurationDocument(file) {
+      const logBox = document.getElementById('docImportLog');
+      logBox.classList.remove('hidden');
+      logBox.textContent = `⏳ 「${file.name}」を解析しています...`;
+
+      try {
+        let extractedText = '';
+        if (file.name.toLowerCase().endsWith('.docx')) {
+          extractedText = await extractTextFromDocxFile(file);
+        } else if (file.name.toLowerCase().endsWith('.pdf')) {
+          extractedText = await extractTextFromPdfFile(file);
+        } else {
+          extractedText = await file.text();
+        }
+
+        const appliedSummary = applyParsedDocumentSettings(extractedText, file.name);
+        await populateTeacherSettingsForm();
+        logBox.textContent = `✅ 「${file.name}」から授業設定を一括反映しました！\n\n${appliedSummary}`;
+        showToast('ドキュメントから授業設定を反映しました');
+      } catch (err) {
+        console.error(err);
+        logBox.textContent = `⚠️ ファイルの解析中にエラーが発生しました：${err.message}`;
+      }
+    }
+
+    // .docx (ZIP) 内の word/document.xml からテキストを抽出（無圧縮＆DeflateStream対応）
+    async function extractTextFromDocxFile(file) {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const view = new DataView(buf);
+      let pos = 0;
+
+      while (pos + 30 < bytes.length) {
+        if (view.getUint32(pos, true) !== 0x04034b50) break;
+        const method = view.getUint16(pos + 8, true);
+        const compSize = view.getUint32(pos + 18, true);
+        const nameLen = view.getUint16(pos + 26, true);
+        const extraLen = view.getUint16(pos + 28, true);
+        const fileName = new TextDecoder().decode(bytes.slice(pos + 30, pos + 30 + nameLen));
+        const dataStart = pos + 30 + nameLen + extraLen;
+        const compData = bytes.slice(dataStart, dataStart + compSize);
+
+        if (fileName === 'word/document.xml') {
+          let xmlBytes = compData;
+          if (method === 8 && typeof DecompressionStream !== 'undefined') {
+            const ds = new DecompressionStream('deflate-raw');
+            const writer = ds.writable.getWriter();
+            writer.write(compData);
+            writer.close();
+            const outBuf = await new Response(ds.readable).arrayBuffer();
+            xmlBytes = new Uint8Array(outBuf);
+          }
+          const xmlStr = new TextDecoder().decode(xmlBytes);
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(xmlStr, 'application/xml');
+          const paragraphs = Array.from(xmlDoc.getElementsByTagName('w:p'));
+          return paragraphs.map(p => p.textContent).join('\n');
+        }
+        pos = dataStart + compSize;
+      }
+      throw new Error('word/document.xml が見つかりませんでした');
+    }
+
+    // PDF からのテキスト抽出（Gemini API直接接続時はマルチモーダル解析も併用）
+    async function extractTextFromPdfFile(file) {
+      if (apiConfig.mode === 'direct' && apiConfig.geminiKey) {
+        const b64 = await blobToBase64(file);
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${encodeURIComponent(apiConfig.geminiKey)}`;
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              role: 'user',
+              parts: [
+                { text: 'このPDF資料（授業計画・設定シート）から「授業名」「めあて」「AIの名前」「文字レベル」「アバター設定」「授業の配慮指示」を抽出し、「項目名：内容」の形式で1行ずつ書き出してください。' },
+                { inlineData: { mimeType: 'application/pdf', data: b64 } }
+              ]
+            }]
+          })
+        });
+        const data = await res.json();
+        return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      }
+
+      // オフライン／デモ時はPDFバイナリ内のUTF-8/ASCIIテキスト抽出フォールバック
+      const buf = await file.arrayBuffer();
+      const raw = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+      const matches = raw.match(/\(([^()]{2,120})\)/g) || [];
+      return matches.map(m => m.slice(1, -1)).join('\n') || `授業名：${file.name.replace(/\.pdf$/i, '')}`;
+    }
+
+    function applyParsedDocumentSettings(text, fallbackFileName) {
+      const profile = getCurrentProfile();
+      const summary = [];
+
+      const matchLine = (regex) => {
+        const m = text.match(regex);
+        return m ? m[1].trim() : null;
+      };
+
+      const className = matchLine(/(?:授業名|じゅぎょうめい)\s*[:：]\s*(.+)/);
+      if (className) {
+        profile.className = className;
+        summary.push(`・授業名：${className}`);
+      } else {
+        profile.className = fallbackFileName.replace(/\.(docx|pdf)$/i, '');
+        summary.push(`・授業名：${profile.className}`);
+      }
+
+      const goal = matchLine(/(?:めあて|目標)\s*[:：]\s*(.+)/);
+      if (goal) {
+        profile.classGoal = goal.startsWith('めあて') ? goal : `めあて：${goal}`;
+        summary.push(`・${profile.classGoal}`);
+      }
+
+      const aiNameStr = matchLine(/(?:AIの名前|キャラクター名|キャラ名)\s*[:：]\s*(.+)/);
+      if (aiNameStr) {
+        profile.aiName = aiNameStr;
+        summary.push(`・AIの名前：${aiNameStr}`);
+      }
+
+      const kanjiStr = matchLine(/(?:文字レベル|漢字レベル|文字表記)\s*[:：]\s*(.+)/);
+      if (kanjiStr) {
+        if (kanjiStr.includes('ひらがな')) profile.kanjiLevel = 'hiragana';
+        else if (kanjiStr.includes('小学1')) profile.kanjiLevel = 'grade1';
+        else if (kanjiStr.includes('小学2')) profile.kanjiLevel = 'grade2';
+        else if (kanjiStr.includes('小学3')) profile.kanjiLevel = 'grade3';
+        else if (kanjiStr.includes('小学4')) profile.kanjiLevel = 'grade4';
+        else if (kanjiStr.includes('小学5')) profile.kanjiLevel = 'grade5';
+        else if (kanjiStr.includes('小学6')) profile.kanjiLevel = 'grade6';
+        else if (kanjiStr.includes('中学1')) profile.kanjiLevel = 'jh1';
+        else if (kanjiStr.includes('中学2')) profile.kanjiLevel = 'jh2';
+        else if (kanjiStr.includes('中学3')) profile.kanjiLevel = 'jh3';
+        summary.push(`・文字レベル：${kanjiStr}`);
+      }
+
+      const avatarStr = matchLine(/(?:アバター設定|キャラ設定)\s*[:：]\s*(.+)/);
+      if (avatarStr) {
+        if (avatarStr.includes('画像')) profile.avatarType = 'image';
+        else if (avatarStr.includes('動画')) profile.avatarType = 'video';
+        else profile.avatarType = 'led';
+        summary.push(`・アバター設定：${avatarStr}`);
+      }
+
+      const speechStr = matchLine(/(?:音声入力方式|音声入力)\s*[:：]\s*(.+)/);
+      if (speechStr) {
+        profile.speechMode = speechStr.includes('自動') ? 'auto' : 'manual';
+        summary.push(`・音声入力方式：${speechStr}`);
+      }
+
+      const promptStr = matchLine(/(?:授業の配慮指示|配慮指示|指示)\s*[:：]\s*(.+)/);
+      if (promptStr) {
+        profile.systemPrompt = promptStr;
+        summary.push(`・授業の配慮指示：${promptStr}`);
+      }
+
+      persistProfiles();
+      return summary.join('\n');
+    }
+
+    /*************************************************************************
+     * 15. ユーティリティ（トースト・カスタム確認ダイアログ・Base64・HTMLエスケープ）
+     *************************************************************************/
+    let toastTimer = null;
+    function showToast(msg) {
+      const el = document.getElementById('toastBanner');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.add('hidden'), 3200);
+    }
+
+    function showCustomConfirm(title, message, onOk) {
+      const modal = document.getElementById('customConfirmModal');
+      document.getElementById('confirmModalTitle').textContent = title;
+      document.getElementById('confirmModalMessage').textContent = message;
+      modal.classList.remove('hidden');
+
+      document.getElementById('confirmCancelBtn').onclick = () => modal.classList.add('hidden');
+      document.getElementById('confirmOkBtn').onclick = () => {
+        modal.classList.add('hidden');
+        onOk();
+      };
+    }
+
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result || '';
+          resolve(dataUrl.split(',')[1] || '');
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>
